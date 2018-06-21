@@ -32,7 +32,7 @@ func Cat(c *cli.Context) (err error) {
 	if !isimg.MatchString(c.Args().First()) {
 		return cli.NewExitError("The input image does not seem to be a valid image", 1)
 	}
-	r, err := NewPartitionReader(c.Args().First(), c.String("key"))
+	r, err := NewPartitionFile(c.Args().First(), c.String("key"))
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
 	}
@@ -86,20 +86,20 @@ func doCopy(c *cli.Context, repack *bool, r *io.ReadCloser,
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		*w, err = NewPartitionWritePacker(c.Args().Get(1), c.String("key"))
+		*w, err = NewPartitionFile(c.Args().Get(1), c.String("key"))
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 		*repack = true
 	case copyinstdin:
 		*r = os.Stdin
-		*w, err = NewPartitionWritePacker(c.Args().First(), c.String("key"))
+		*w, err = NewPartitionFile(c.Args().First(), c.String("key"))
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
 		*repack = true
 	case copyout:
-		*r, err = NewPartitionReader(c.Args().First(), c.String("key"))
+		*r, err = NewPartitionFile(c.Args().First(), c.String("key"))
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
