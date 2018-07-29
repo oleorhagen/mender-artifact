@@ -229,6 +229,13 @@ func run() error {
 		},
 	}
 
+	listFiles := cli.Command{
+		Name:        "ls",
+		Usage:       "ls [artifact|sdimg|uefiimg]:<filepath>",
+		Description: "ls lists the directory contents",
+		Action:      ListFiles,
+	}
+
 	app.Commands = []cli.Command{
 		writeCommand,
 		readCommand,
@@ -238,6 +245,7 @@ func run() error {
 		copy,
 		cat,
 		install,
+		listFiles,
 	}
 	return app.Run(os.Args)
 }

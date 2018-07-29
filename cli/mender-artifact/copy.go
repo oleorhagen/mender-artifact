@@ -20,6 +20,7 @@ import (
 	"os"
 	"regexp"
 
+	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 )
 
@@ -89,6 +90,34 @@ func Copy(c *cli.Context) (err error) {
 		return err
 	}
 	return r.Close()
+}
+
+// ListFiles lists all the files in a current directory using the command:
+// `mender-artifact ls <img>:/path/`
+func ListFiles(c *cli.Context) (err error) {
+	imgname, dpath, err := parseImgPath(c.Args().First())
+	if err != nil {
+		return cli.NewExitError(errors.Wrap(err, "ListFiles: "), 1)
+	}
+	modcands, isArtifact, err := getCandidatesForModify(imgname, []byte(c.String("key")))
+	if err != nil {
+		return cli.NewExitError(errors.Wrap(err, "ListFiles: "), 1)
+	}
+	for _, tmpPartition := range modcands {
+		defer os.Remove(tmpPartition.path)
+	}
+	var img partition
+	if isArtifact {
+		img = modcands[0]
+	} else {
+		img = modcands[1] // RootfsA
+	}
+	s, err := debugfsRunls(dpath, img.path)
+	if err != nil {
+		return cli.NewExitError(errors.Wrap(err, "ListFiles: "), 1)
+	}
+	fmt.Println(s)
+	return nil
 }
 
 // Install installs a file from the host filesystem onto either

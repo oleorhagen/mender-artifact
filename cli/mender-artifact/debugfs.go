@@ -15,6 +15,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -52,6 +53,20 @@ func debugfsRunFsck(image string) error {
 		return errors.New("fsck returned unparsed error")
 	}
 	return nil
+}
+
+func debugfsRunls(path, image string) (string, error) {
+	fmt.Println(path)
+	cmdstring := fmt.Sprintf("ls -l %s", path)
+	cmd := exec.Command("debugfs", "-R", cmdstring, image)
+	buf := bytes.NewBuffer(nil)
+	cmd.Stdout = buf
+	fmt.Println(buf.Len())
+	if err := cmd.Run(); err != nil {
+		return "", errors.Wrap(err, "debugfsRunls: failed to run the ls command")
+	}
+	fmt.Println(buf.Len())
+	return buf.String(), nil
 }
 
 func debugfsCopyFile(file, image string) (string, error) {
