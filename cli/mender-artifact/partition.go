@@ -41,7 +41,7 @@ type partition struct {
 // partitions.
 type sdimgFile []io.ReadWriteCloser
 
-func newSDImgFile(fpath string, modcands []partition) (sdimgFile, error) {
+func newSDImgFile(name, fpath string, modcands []partition) (sdimgFile, error) {
 	if len(modcands) < 4 {
 		return nil, fmt.Errorf("newSDImgFile: %d partitions found, 4 needed", len(modcands))
 	}
@@ -168,9 +168,9 @@ func NewPartitionFile(imgpath, key string) (io.ReadWriteCloser, error) {
 		modcands[i].name = imgname
 	}
 	if isArtifact {
-		return newArtifactExtFile(key, fpath, modcands[0])
+		return newArtifactExtFile(key, fpath, imgname, modcands[0])
 	}
-	return newSDImgFile(fpath, modcands)
+	return newSDImgFile(imgname, fpath, modcands)
 }
 
 const (
@@ -202,7 +202,7 @@ type artifactExtFile struct {
 	extFile
 }
 
-func newArtifactExtFile(key, fpath string, p partition) (*artifactExtFile, error) {
+func newArtifactExtFile(key, fpath, name string, p partition) (*artifactExtFile, error) {
 	tmpf, err := ioutil.TempFile("", "mendertmp")
 	if err != nil {
 		return nil, err
@@ -228,14 +228,16 @@ func (a *artifactExtFile) Close() error {
 	os.Remove(a.tmpf.Name())
 	if a.repack {
 		return repackArtifact(a.name, a.path,
-			a.key, filepath.Base(a.name))
+			a.key, a.originalName)
 	}
+	os.Remove(a.imagefilepath) // Delete temp artifact fs.
 	return nil
 }
 
 // extFile wraps partition and implements ReadWriteCloser
 type extFile struct {
 	partition
+	originalName  string
 	key           string
 	imagefilepath string
 	repack        bool     // True if a write has been done
@@ -289,7 +291,7 @@ func (ef *extFile) Read(b []byte) (int, error) {
 func (ef *extFile) Close() (err error) {
 	if ef.repack {
 		part := []partition{ef.partition}
-		err = repackSdimg(part, ef.name)
+		err = repackSdimg(part, ef.originalName)
 	}
 	ef.tmpf.Close()    // Ignore
 	os.Remove(ef.path) // ignore error for tmp-dir
@@ -298,6 +300,7 @@ func (ef *extFile) Close() (err error) {
 
 // fatFile wraps a partition struct with a reader/writer for fat filesystems
 type fatFile struct {
+	originalName string
 	partition
 	imageFilePath string // The local filesystem path to the image
 	repack        bool
@@ -337,7 +340,7 @@ func (f *fatFile) Write(b []byte) (n int, err error) {
 func (f *fatFile) Close() (err error) {
 	if f.repack {
 		p := []partition{f.partition}
-		err = repackSdimg(p, f.name)
+		err = repackSdimg(p, f.originalName)
 	}
 	f.tmpf.Close()
 	os.Remove(f.path) // Ignore error for tmp-dir
