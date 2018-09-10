@@ -429,3 +429,15 @@ func (f *Files) Write(p []byte) (n int, err error) {
 	}
 	return len(p), nil
 }
+
+// FilesV3 can contain no files, as opposed to Files in version 1 and 2,
+// as the update is now stored in the augmented-header.
+type FilesV3 struct {
+	*Files
+}
+
+func (f FilesV3) Validate() error {
+	// Do not enforce any structure on the files format,
+	// since in version 3, a header can have an empty payload.
+	return nil
+}
