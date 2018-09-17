@@ -92,6 +92,8 @@ func (rp *Rootfs) ReadHeader(r io.Reader, path string) error {
 		if rp.version == 3 {
 			if !rp.regularHeaderRead {
 				rp.regularHeaderRead = true
+				// In version 3, if reading the regular header,
+				// files list should be empty. Hence no error.
 				if err == nil {
 					return errors.New("ReadHeader: files-list should be empty")
 				}

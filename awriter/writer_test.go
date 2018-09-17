@@ -358,6 +358,85 @@ func TestWithScripts(t *testing.T) {
 	assert.NoError(t, checkTarElements(buf, 3))
 }
 
+func TestAddDelta(t *testing.T) {
+	artifactFile, err := ioutil.TempFile("", "testartifact")
+	require.Nil(t, err)
+
+	s := artifact.NewSigner([]byte(PrivateKey))
+	w := NewWriterSigned(artifactFile, s)
+
+	upd, err := MakeFakeUpdate("some jibberish data for the fake update is required")
+	assert.NoError(t, err)
+	defer os.Remove(upd)
+
+	u := handlers.NewRootfsV3(upd)
+	updates := &Updates{U: []handlers.Composer{u}}
+
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates,
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      []string{"depends-name"},
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
+	})
+	require.NoError(t, err)
+	// Reset the file resource and append the delta update.
+	artifactFile.Seek(0, 0)
+	f, err := AddDeltaUpdate(artifactFile, &WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates,
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      []string{"depends-name"},
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
+	})
+	require.Nil(t, err)
+	assert.NotNil(t, f)
+	// Re-read the artifact and check that the new update, and information is written correctly.
+	f.Seek(0, 0)
+	require.NoError(t, checkTarElementsByName(f, []string{
+		"version",
+		"manifest",
+		"manifest.sig",
+		"manifest-augment",
+		"header.tar.gz",
+		"header-augment.tar.gz",
+		"0000.tar.gz",
+	}))
+	// f.Seek(0, 0)
+	// ar := areader.NewReader(f)
+	// require.Nil(t, ar.ReadArtifact())
+	// inst := ar.GetHandlers()
+	// for k, p := range inst {
+	// 	fmt.Printf("  %3d:\n", k)
+	// 	fmt.Printf("    Type:   %s\n", p.GetType())
+	// 	for _, f := range p.GetUpdateFiles() {
+	// 		fmt.Printf("    Files:\n")
+	// 		fmt.Printf("      name:     %s\n", f.Name)
+	// 		fmt.Printf("      size:     %d\n", f.Size)
+	// 		fmt.Printf("      modified: %s\n", f.Date)
+	// 		fmt.Printf("      checksum: %s\n", f.Checksum)
+	// 	}
+	// }
+}
+
 type TestDirEntry struct {
 	Path    string
 	Content []byte

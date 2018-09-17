@@ -16,6 +16,7 @@ package awriter
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
@@ -23,7 +24,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 
+	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
@@ -395,6 +399,7 @@ func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error 
 	sa := artifact.NewTarWriterStream(tarWriter)
 	stream, err := artifact.ToStream(hInfo)
 	ai := artifact.HeaderInfoV3{}
+	// TODO - why unmarshal here? leftover debug info?
 	err = json.Unmarshal(stream, &ai)
 	if err != nil {
 		return errors.Wrap(err, "writeAugmentedHeader")
@@ -404,6 +409,7 @@ func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error 
 	}
 
 	for i, upd := range args.Updates.U {
+		// TODO - typeInfo depends and provides needs to be filled in.
 		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i, Augmented: true, TypeInfoDepends: []artifact.TypeInfoDepends{}, TypeInfoProvides: []artifact.TypeInfoProvides{}}); err != nil {
 			return errors.Wrapf(err, "writer: error processing update directory")
 		}
@@ -418,4 +424,130 @@ func writeData(tw *tar.Writer, updates *Updates) error {
 		}
 	}
 	return nil
+}
+
+// Dummy type to mimic a delta generator.
+type delta struct {
+	*os.File
+}
+
+func newDelta() *delta {
+	df, err := ioutil.TempFile("", "deltafile")
+	if err != nil {
+		panic("This is only a temporary type")
+	}
+	if _, err := df.WriteString("deltaupdate, yay"); err != nil {
+		panic("No non oononono")
+	}
+	return &delta{df}
+}
+
+func (d delta) Name() string {
+	return d.File.Name()
+}
+
+// Write gets the first 20 bytes of an update to simulate a delta patch.
+func (d *delta) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
+func createDeltaFromArtifactUpdate(artifact io.Reader) (string, error) {
+	ar := areader.NewReader(artifact)
+	deltaGenerator := newDelta()
+	defer deltaGenerator.Close()
+	rootfs := handlers.NewRootfsInstaller(3)
+	rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
+		_, err := io.Copy(deltaGenerator, r)
+		return errors.Wrap(err, "createDeltaFromArtifactUpdate")
+	}
+	ar.RegisterHandler(rootfs)
+	ar.ReadArtifact()
+	return deltaGenerator.Name(), nil
+}
+
+// AddDeltaUpdate replaces a currently existing manifest and header-augment with
+// new ones containing all the information needed for a delta update. This also means that the payload
+// is changed to contain the delta of the update.
+func AddDeltaUpdate(art *os.File, args *WriteArtifactArgs) (*os.File, error) {
+	/////////////////////////////////////////////////////////////
+	// First create the delta update from the existing update. //
+	/////////////////////////////////////////////////////////////
+	df, err := createDeltaFromArtifactUpdate(art)
+	if err != nil {
+		return nil, err
+	}
+	// Reset the file to the start for the next traversal.
+	if _, err = art.Seek(0, 0); err != nil {
+		return nil, err
+	}
+	deltafile, err := ioutil.TempFile("", "deltaartifact")
+	if err != nil {
+		return nil, err
+	}
+	// Set the delta as the update to be installed.
+	deltaUpdate := handlers.NewDeltaImage(df)
+	args.Updates = &Updates{U: []handlers.Composer{deltaUpdate}}
+	// Augment the header.
+	augManifestChecksumStore := artifact.NewChecksumStore()
+	tmpAugHdr, err := writeTempHeader(augManifestChecksumStore, "header-augment", writeAugmentedHeader, args)
+	if err != nil {
+		return nil, errors.Wrap(err, "AddDeltaUpdate")
+	}
+	if _, err = tmpAugHdr.Seek(0, 0); err != nil {
+		return nil, err
+	}
+	////////////////////////////////////////
+	// Build the new artifact.            //
+	////////////////////////////////////////
+	ar := tar.NewReader(art)
+	deltaTarWriter := tar.NewWriter(deltafile)
+	for {
+		hdr, err := ar.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		//////////////////////
+		// Changed headers. //
+		//////////////////////
+		if hdr.Name == "header-augment.tar.gz" {
+			fw := artifact.NewTarWriterFile(deltaTarWriter)
+			if err := fw.Write(tmpAugHdr, "header-augment.tar.gz"); err != nil {
+				return nil, errors.Wrap(err, "addDelta")
+			}
+			continue
+		}
+		if strings.HasPrefix(hdr.Name, "data") {
+			if err = writeData(deltaTarWriter, args.Updates); err != nil {
+				return nil, errors.Wrap(err, "addDelta")
+			}
+			continue
+		}
+		////////////////////////////////////////////////
+		// Copy the old header into the new artifact. //
+		////////////////////////////////////////////////
+		if err = deltaTarWriter.WriteHeader(hdr); err != nil {
+			return nil, errors.Wrapf(err, "AddDeltaUpdate: Failed to copy header: %s", hdr.Name)
+		}
+		if hdr.Name == "manifest-augment" {
+			// Read in the existing augmented-manifest.
+			augmanifest := bytes.NewBuffer(nil)
+			if _, err = io.Copy(augmanifest, ar); err != nil {
+				return nil, err
+			}
+			reg := regexp.MustCompile("header-augment.tar.gz [0-9a-zA-Z]+")
+			augmentedManifest := reg.ReplaceAll(augmanifest.Bytes(), append([]byte("header-augment.tar.gz "), augManifestChecksumStore.GetRaw()...))
+			if n, err := io.Copy(deltaTarWriter, bytes.NewReader(augmentedManifest)); err != nil {
+				return nil, errors.Wrapf(err, "AddDeltaUpdate: Failed to modify the augmented manifest: write length: %d", n)
+			}
+			continue
+		}
+		if _, err = io.Copy(deltaTarWriter, ar); err != nil {
+			return nil, errors.Wrapf(err, "AddDeltaUpdate: Failed to copy data: %s", hdr.Name)
+		}
+	}
+
+	return deltafile, nil
 }
