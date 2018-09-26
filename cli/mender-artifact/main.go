@@ -101,14 +101,13 @@ func run() error {
 			Name:  "artifact-name-depends",
 			Usage: "Sets the name(s) of the artifact(s) which this update depends upon",
 		},
-		// TODO - this flag, or device-type?
-		cli.StringSliceFlag{
-			Name:  "artifact-device-depends",
-			Usage: "Sets the name(s) of the device(s) which this update depends upon",
-		},
 		cli.StringFlag{
-			Name:  "group",
-			Usage: "Sets the artifact group",
+			Name:  "provides-group",
+			Usage: "The group the artifact provides",
+		},
+		cli.StringSliceFlag{
+			Name:  "depends-groups",
+			Usage: "The group(s) the artifact depends on",
 		},
 	}
 

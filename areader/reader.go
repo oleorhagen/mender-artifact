@@ -185,15 +185,6 @@ func (ar *Reader) readAugmentedHeader(tReader io.Reader, headerSum []byte) error
 	}
 	ar.augmentedhInfo = hInfo
 
-	// TODO - necessary when the previous header is already processed?
-	// after reading header-info we can check device compatibility
-	// Maybe this should be a callback for checking depends and provides?
-	if ar.CompatibleDevicesCallback != nil {
-		if err = ar.CompatibleDevicesCallback(hInfo.ArtifactDepends.CompatibleDevices); err != nil {
-			return err
-		}
-	}
-
 	hdr, err := getNext(tr)
 	if err != nil {
 		return err
@@ -313,15 +304,15 @@ func verifyVersion(ver []byte, manifest *artifact.ChecksumStore) error {
 // the artifact version 3.
 var artifactV3ParseGrammar = [][]string{
 	// Version is already read in ReadArtifact().
-	{"manifest", "header.tar.gz"},                                                              // Unsigned.
-	{"manifest", "manifest.sig", "header.tar.gz"},                                              // Signed.
-	{"manifest", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"},                 // TODO - is this the unsigned path, or the one above the preferred one?.
-	{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"}, // Augmented.
+	{"manifest", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"},                 // Unsigned.
+	{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"}, // Signed.
 	// Data is processed in ReadArtifact()
 }
 
+var errParseOrder = errors.New("Parse error: The artifact seems to have the wrong structure")
+
 // verifyParseOrder compares the parseOrder against the allowed parse paths through an artifact.
-func verifyParseOrder(parseOrder []string) (validToken string, validPath bool) {
+func verifyParseOrder(parseOrder []string) (validToken string, validPath bool, err error) {
 	// Do a substring search for the parseOrder sent in on each of the valid grammars.
 	for _, validPath := range artifactV3ParseGrammar {
 		if len(parseOrder) > len(validPath) {
@@ -335,13 +326,13 @@ func verifyParseOrder(parseOrder []string) (validToken string, validPath bool) {
 			// We have a submatch. Check if the entire length matches.
 			if i == len(parseOrder)-1 {
 				if len(parseOrder) == len(validPath) {
-					return parseOrder[i], true // Full match.
+					return parseOrder[i], true, nil // Full match.
 				}
-				return parseOrder[i], false
+				return parseOrder[i], false, nil
 			}
 		}
 	}
-	return fmt.Sprintf("Invalid structure: %s, wrong element: %s", parseOrder, parseOrder[len(parseOrder)-1]), false
+	return "", false, errParseOrder
 }
 
 func (ar *Reader) readHeaderV3(tReader *tar.Reader,
@@ -368,7 +359,11 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 			return nil, errors.Wrap(err, "readHeaderV3")
 		}
 		parsePath = append(parsePath, hdr.Name)
-		nextParseToken, validPath := verifyParseOrder(parsePath)
+		nextParseToken, validPath, err := verifyParseOrder(parsePath)
+		// Only error returned is errParseOrder.
+		if err != nil {
+			return nil, fmt.Errorf("Invalid structure: %s, wrong element: %s", parsePath, parsePath[len(parsePath)-1])
+		}
 		err = handleHeaderReads(nextParseToken, tReader, manifestChecksumStore, ar, version)
 		if err != nil {
 			return nil, errors.Wrap(err, "readHeaderV3")
@@ -433,8 +428,6 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 		if err := ar.readAugmentedHeader(tReader, hc); err != nil {
 			return errors.Wrap(err, "handleHeaderReads: Failed to read the augmented header")
 		}
-	case "invalid structure":
-		return fmt.Errorf("readHeaderV3: Artifact has an invalid structure: %s", headerName)
 	default:
 		return errors.Errorf("reader: found unexpected file in artifact: %v",
 			headerName)
@@ -545,9 +538,6 @@ func (ar *Reader) ReadArtifact() error {
 func (ar *Reader) GetCompatibleDevices() []string {
 	if ar.hInfo == nil {
 		return nil
-	}
-	if ar.augmentedhInfo != nil {
-		// TODO - how is this handled for version 3?
 	}
 	return ar.hInfo.GetCompatibleDevices()
 }

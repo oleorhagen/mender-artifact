@@ -29,38 +29,21 @@ import (
 )
 
 func validateInput(c *cli.Context) error {
-	if c.Int("version") == 3 {
-		// TODO - spec says that device-type can be empty.
-		if len(c.String("artifact-name")) == 0 || // Required by artifact-provides.
-			len(c.String("update")) == 0 {
-			return cli.NewExitError(
-				"must provide `artifact-name` and `update`",
-				errArtifactInvalidParameters)
-		}
-		if len(strings.Fields(c.String("artifact-name"))) > 1 {
-			// check for whitespace in artifact-name
-			return cli.NewExitError(
-				"whitespace is not allowed in the artifact-name",
-				errArtifactInvalidParameters,
-			)
-		}
-	} else {
-		// Version 1 and 2 validation.
-		if len(c.StringSlice("device-type")) == 0 ||
-			len(c.String("artifact-name")) == 0 ||
-			len(c.String("update")) == 0 {
-			return cli.NewExitError(
-				"must provide `device-type`, `artifact-name` and `update`",
-				errArtifactInvalidParameters,
-			)
-		}
-		if len(strings.Fields(c.String("artifact-name"))) > 1 {
-			// check for whitespace in artifact-name
-			return cli.NewExitError(
-				"whitespace is not allowed in the artifact-name",
-				errArtifactInvalidParameters,
-			)
-		}
+	// Version 1,2 and 3 validation.
+	if len(c.StringSlice("device-type")) == 0 ||
+		len(c.String("artifact-name")) == 0 ||
+		len(c.String("update")) == 0 {
+		return cli.NewExitError(
+			"must provide `device-type`, `artifact-name` and `update`",
+			errArtifactInvalidParameters,
+		)
+	}
+	if len(strings.Fields(c.String("artifact-name"))) > 1 {
+		// check for whitespace in artifact-name
+		return cli.NewExitError(
+			"whitespace is not allowed in the artifact-name",
+			errArtifactInvalidParameters,
+		)
 	}
 	return nil
 }
@@ -141,12 +124,13 @@ func writeRootfs(c *cli.Context) error {
 
 	depends := artifact.ArtifactDepends{
 		ArtifactName:      c.StringSlice("artifact-name-depends"),
-		CompatibleDevices: c.StringSlice("artifact-device-depends"),
+		CompatibleDevices: c.StringSlice("device-type"),
+		ArtifactGroup:     c.StringSlice("depends-groups"),
 	}
 
 	provides := artifact.ArtifactProvides{
 		ArtifactName:         c.String("artifact-name"),
-		ArtifactGroup:        c.String("group"),
+		ArtifactGroup:        c.String("provides-group"),
 		SupportedUpdateTypes: updateTypesSupported,
 	}
 

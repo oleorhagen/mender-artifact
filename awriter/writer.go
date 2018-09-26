@@ -17,7 +17,6 @@ package awriter
 import (
 	"archive/tar"
 	"compress/gzip"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -373,17 +372,14 @@ func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error {
 
 // WriteAugHeaderArgs is a wrapper for the arguments to the writeAugmentedHeader function.
 type WriteAugHeaderArgs struct {
-	Version          int
-	TarWriter        *tar.Writer
 	Updates          *Updates
-	ArtifactDepends  *artifact.ArtifactDepends
-	ArtifactProvides *artifact.ArtifactProvides
-	Scripts          *artifact.Scripts
+	typeInfoDepends  []artifact.TypeInfoDepends
+	typeInfoProvides []artifact.TypeInfoProvides
 }
 
 // writeAugmentedHeader writes the augmented header with the restrictions:
-// header-info: Can only contain artifact-depends and rootfs_image_checksum.
-// type-info: Can only contain artifact-depends and rootfs_image_checksum.
+// header-info: Can only contain the `updates` field.
+// type-info: Can only contain artifact-depends which has the `type` and  `rootfs_image_checksum` fields.
 func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error {
 	hInfo := new(artifact.AugmentedHeaderInfoV3)
 	for _, upd := range args.Updates.U {
@@ -391,19 +387,18 @@ func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error 
 			append(hInfo.Updates, artifact.UpdateType{Type: upd.GetType()})
 	}
 	// Augmented header only has artifact-depends.
-	hInfo.ArtifactDepends = args.Depends
 	sa := artifact.NewTarWriterStream(tarWriter)
 	stream, err := artifact.ToStream(hInfo)
-	ai := artifact.HeaderInfoV3{}
-	err = json.Unmarshal(stream, &ai)
 	if err != nil {
-		return errors.Wrap(err, "writeAugmentedHeader")
+		return err
 	}
 	if err := sa.Write(stream, "header-info"); err != nil {
 		return errors.New("writer: can not store header-info")
 	}
 
 	for i, upd := range args.Updates.U {
+		// TODO - Add typeInfo depends and provides!
+		// Do this after the final doc-format is merged.
 		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i, Augmented: true, TypeInfoDepends: []artifact.TypeInfoDepends{}, TypeInfoProvides: []artifact.TypeInfoProvides{}}); err != nil {
 			return errors.Wrapf(err, "writer: error processing update directory")
 		}

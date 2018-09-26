@@ -251,10 +251,8 @@ func (hi *HeaderInfoV3) Write(p []byte) (n int, err error) {
 // AugmentedHeaderInfoV3 has some limitations as compared to the HeaderInfoV3.
 // This header can only contain:
 // - The type of the update.
-// - Artifact depends.
 type AugmentedHeaderInfoV3 struct {
-	Updates         []UpdateType     `json:"updates"`
-	ArtifactDepends *ArtifactDepends `json:"artifact_depends"` // Has its own json marshaller  function.
+	Updates []UpdateType `json:"updates"`
 }
 
 // Validate validates the correctness of the augmented-header version3.
@@ -266,14 +264,9 @@ func (hi *AugmentedHeaderInfoV3) Validate() error {
 	// No empty updates.
 	for _, update := range hi.Updates {
 		if update == (UpdateType{}) {
-			return errors.Wrap(ErrValidatingData, "Augmented Header requires an upate type")
+			return errors.Wrap(ErrValidatingData, "Augmented-header requires an update type")
 		}
 	}
-	///////////////////////////////////////
-	// Artifact-depends can be empty, thus:
-	///////////////////////////////////////
-	/* Artifact must not depend on a name. */
-	/* Artifact must not depend on a device. */
 	return nil
 }
 
@@ -287,7 +280,7 @@ func (hi *AugmentedHeaderInfoV3) Write(p []byte) (n int, err error) {
 type ArtifactDepends struct {
 	ArtifactName         []string `json:"artifact_name,omitempty"`
 	CompatibleDevices    []string `json:"device_type,omitempty"`
-	ArtifactGroup        string   `json:"artifact_group,omitempty"`
+	ArtifactGroup        []string `json:"artifact_group,omitempty"`
 	UpdateTypesSupported []string `json:"update_types_supported,omitempty"`
 }
 

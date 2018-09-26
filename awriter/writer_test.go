@@ -303,6 +303,45 @@ func TestWriteArtifactV3(t *testing.T) {
 	}))
 	buf.Reset()
 
+	// Signed artifact V3
+	buf.Reset()
+	s = artifact.NewSigner([]byte(PrivateKey))
+	w = NewWriterSigned(buf, s)
+	upd, err = MakeFakeUpdate("my test update")
+	assert.NoError(t, err)
+	defer os.Remove(upd)
+
+	u = handlers.NewRootfsV3(upd)
+	updates = &Updates{U: []handlers.Composer{u}}
+
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates,
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      []string{"depends-name"},
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
+	})
+	assert.NoError(t, err)
+	assert.NoError(t, checkTarElementsByName(buf, []string{
+		"version",
+		"manifest",
+		"manifest.sig",
+		"manifest-augment",
+		"header.tar.gz",
+		"header-augment.tar.gz",
+		"0000.tar.gz",
+	}))
+	buf.Reset()
+
 	// error writing non-existing
 	u = handlers.NewRootfsV3("non-existing")
 	updates = &Updates{U: []handlers.Composer{u}}

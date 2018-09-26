@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"testing"
 
@@ -186,9 +185,7 @@ func TestReadArtifact(t *testing.T) {
 
 		err = aReader.ReadArtifact()
 		if test.readError != nil {
-			if err == nil {
-				log.Fatalf("%q: Test expected an error, but ReadArtifact did not return an error. expected: %v", name, test.readError)
-			}
+			assert.NotNil(t, err, name+"Test expected an error, but ReadArtifact did not return an error")
 			assert.Equal(t, test.readError.Error(), err.Error())
 			continue
 		}
@@ -437,25 +434,22 @@ func TestValidParsePathV3(t *testing.T) {
 		path      []string
 		nextToken string
 		validPath bool
+		err       error
 	}{
+
 		"Unsigned": {
-			path:      []string{"manifest", "header.tar.gz"},
-			nextToken: "header.tar.gz",
+			path:      []string{"manifest", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"},
+			nextToken: "header-augment.tar.gz",
 			validPath: true,
 		},
 		"Signed": {
-			path:      []string{"manifest", "manifest.sig", "header.tar.gz"},
-			nextToken: "header.tar.gz",
-			validPath: true,
-		},
-		"Augmented": {
 			path:      []string{"manifest", "manifest.sig", "manifest-augment", "header.tar.gz", "header-augment.tar.gz"},
 			nextToken: "header-augment.tar.gz",
 			validPath: true,
 		},
 		"Missing manifest": {
 			path:      []string{"header.tar.gz"},
-			nextToken: "Invalid structure",
+			err:       errParseOrder,
 			validPath: false,
 		},
 		"manifest means we're still on a valid path, but path is not finished": {
@@ -465,7 +459,7 @@ func TestValidParsePathV3(t *testing.T) {
 		},
 		"Manifest-augment missing": {
 			path:      []string{"manifest", "manifest.sig", "header.tar.gz", "header-augment.tar.gz"},
-			nextToken: "Invalid structure",
+			err:       errParseOrder,
 			validPath: false,
 		},
 		"Header.tar.gz is still on a valid path, we're not finished, as the artifact is augmented": {
@@ -475,7 +469,10 @@ func TestValidParsePathV3(t *testing.T) {
 		},
 	}
 	for name, test := range tests {
-		res, validPath := verifyParseOrder(test.path)
+		res, validPath, err := verifyParseOrder(test.path)
+		if err != nil {
+			assert.EqualError(t, err, test.err.Error())
+		}
 		assert.Contains(t, res, test.nextToken, "%q: Failed to verify the order the artifact was parsed", name)
 		assert.Equal(t, test.validPath, validPath, "%q: ValidPath values are wrong", name)
 	}
