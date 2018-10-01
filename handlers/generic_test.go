@@ -89,7 +89,7 @@ func TestReadHeader(t *testing.T) {
 		_, err = tr.Next()
 		assert.NoError(t, err)
 
-		err = g.ReadHeader(buf, test.name)
+		err = g.ReadHeader(buf, test.name, 2)
 		if test.shouldErr {
 			assert.Error(t, err)
 			if test.errMsg != "" {

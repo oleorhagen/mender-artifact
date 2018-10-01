@@ -102,7 +102,7 @@ func unpackArtifact(name string) (string, error) {
 
 	// initialize raw reader and writer
 	aReader := areader.NewReader(f)
-	rootfs := handlers.NewRootfsInstaller(2)
+	rootfs := handlers.NewRootfsInstaller()
 
 	tmp, err := ioutil.TempFile(filepath.Dir(name), "mender-artifact")
 	if err != nil {
@@ -167,7 +167,7 @@ func repack(artifactName string, from io.Reader, to io.Writer, key []byte,
 		defer os.Remove(tmpData.Name())
 		defer tmpData.Close()
 
-		rootfs := handlers.NewRootfsInstaller(2)
+		rootfs := handlers.NewRootfsInstaller()
 		rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
 			_, err = io.Copy(tmpData, r)
 			return err

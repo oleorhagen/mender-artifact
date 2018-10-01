@@ -143,7 +143,7 @@ func TestReadArtifact(t *testing.T) {
 	}
 
 	rfh := func(version int) handlers.Installer {
-		rfh := handlers.NewRootfsInstaller(version)
+		rfh := handlers.NewRootfsInstaller()
 		rfh.InstallHandler = copy
 		return rfh
 	}
@@ -241,10 +241,10 @@ func TestReadSigned(t *testing.T) {
 
 func TestRegisterMultipleHandlers(t *testing.T) {
 	aReader := NewReader(nil)
-	err := aReader.RegisterHandler(handlers.NewRootfsInstaller(1))
+	err := aReader.RegisterHandler(handlers.NewRootfsInstaller())
 	assert.NoError(t, err)
 
-	err = aReader.RegisterHandler(handlers.NewRootfsInstaller(1))
+	err = aReader.RegisterHandler(handlers.NewRootfsInstaller())
 	assert.Error(t, err)
 
 	err = aReader.RegisterHandler(nil)
@@ -330,7 +330,7 @@ func (i *installer) Copy() handlers.Installer {
 	return i
 }
 
-func (i *installer) ReadHeader(r io.Reader, path string) error {
+func (i *installer) ReadHeader(r io.Reader, path string, version int) error {
 	return nil
 }
 

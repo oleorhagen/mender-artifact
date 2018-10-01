@@ -340,8 +340,8 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 	manifestChecksumStore := artifact.NewChecksumStore()
 	parsePath := []string{}
 
-	// Register the update handler for rootfsV3.
-	rootfs := handlers.NewRootfsInstaller(3)
+	// Register the update handler.
+	rootfs := handlers.NewRootfsInstaller()
 	rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
 		// This is to get the checksum for a artifact-version 3 read,
 		// as it does not use the generic reader.
@@ -369,6 +369,11 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 			return nil, errors.Wrap(err, "readHeaderV3")
 		}
 		if validPath {
+			// Artifact should be signed, but isn't, so do not process the update.
+			if ar.shouldBeSigned && !ar.IsSigned {
+				return nil,
+					errors.New("reader: expecting signed artifact, but no signature file found")
+			}
 			break // return and process the /data records in ReadArtifact()
 		}
 	}
@@ -626,7 +631,7 @@ func (ar *Reader) readHeaderUpdate(tr *tar.Reader, hdr *tar.Header) error {
 		if !ok {
 			return errors.Errorf("reader: can not find parser for update: %v", hdr.Name)
 		}
-		if hErr := inst.ReadHeader(tr, hdr.Name); hErr != nil {
+		if hErr := inst.ReadHeader(tr, hdr.Name, ar.info.Version); hErr != nil {
 			return errors.Wrap(hErr, "reader: can not read header")
 		}
 

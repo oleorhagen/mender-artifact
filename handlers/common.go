@@ -58,7 +58,7 @@ type Composer interface {
 type Installer interface {
 	GetUpdateFiles() [](*DataFile)
 	GetType() string
-	ReadHeader(r io.Reader, path string) error
+	ReadHeader(r io.Reader, path string, version int) error
 	Install(r io.Reader, info *os.FileInfo) error
 	Copy() Installer
 }

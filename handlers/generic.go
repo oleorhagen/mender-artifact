@@ -63,7 +63,7 @@ func stripSum(path string) string {
 	return strings.TrimSuffix(bName, filepath.Ext(bName))
 }
 
-func (g *Generic) ReadHeader(r io.Reader, path string) error {
+func (g *Generic) ReadHeader(r io.Reader, path string, version int) error {
 	switch {
 	case filepath.Base(path) == "files":
 		files, err := parseFiles(r)

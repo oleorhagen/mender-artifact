@@ -68,10 +68,9 @@ func NewRootfsV3(updFile string) *Rootfs {
 
 // NewRootfsInstaller is used by the artifact reader to read and install
 // rootfs-image update type.
-func NewRootfsInstaller(version int) *Rootfs {
+func NewRootfsInstaller() *Rootfs {
 	return &Rootfs{
-		version: version,
-		update:  new(DataFile),
+		update: new(DataFile),
 	}
 }
 
@@ -85,11 +84,11 @@ func (rp *Rootfs) Copy() Installer {
 	}
 }
 
-func (rp *Rootfs) ReadHeader(r io.Reader, path string) error {
+func (rp *Rootfs) ReadHeader(r io.Reader, path string, version int) error {
 	switch {
 	case filepath.Base(path) == "files":
 		files, err := parseFiles(r)
-		if rp.version == 3 {
+		if version == 3 {
 			if !rp.regularHeaderRead {
 				rp.regularHeaderRead = true
 				if err == nil {

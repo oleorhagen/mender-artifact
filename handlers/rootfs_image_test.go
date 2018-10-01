@@ -134,7 +134,7 @@ func TestRootfsReadHeader(t *testing.T) {
 		_, err = tr.Next()
 		assert.NoError(t, err)
 
-		err = r.ReadHeader(buf, test.name)
+		err = r.ReadHeader(buf, test.name, 2)
 		if test.shouldErr {
 			assert.Error(t, err)
 			if test.errMsg != "" {
@@ -147,7 +147,7 @@ func TestRootfsReadHeader(t *testing.T) {
 }
 
 func TestRootfsReadData(t *testing.T) {
-	r := NewRootfsInstaller(2)
+	r := NewRootfsInstaller()
 
 	buf := bytes.NewBuffer([]byte("some data"))
 
