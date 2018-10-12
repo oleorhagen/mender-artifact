@@ -191,6 +191,8 @@ func repack(artifactName string, from io.Reader, to io.Writer, key []byte,
 		h = handlers.NewRootfsV1(data)
 	case 2:
 		h = handlers.NewRootfsV2(data)
+	case 3:
+		h = handlers.NewRootfsV3(data)
 	default:
 		return nil, errors.Errorf("unsupported artifact version: %d", info.Version)
 	}
@@ -214,12 +216,14 @@ func repack(artifactName string, from io.Reader, to io.Writer, key []byte,
 	}
 	err = aWriter.WriteArtifact(
 		&awriter.WriteArtifactArgs{
-			Format:  info.Format,
-			Version: info.Version,
-			Devices: ar.GetCompatibleDevices(),
-			Name:    name,
-			Updates: upd,
-			Scripts: scr,
+			Format:   info.Format,
+			Version:  info.Version,
+			Devices:  ar.GetCompatibleDevices(),
+			Name:     name,
+			Updates:  upd,
+			Scripts:  scr,
+			Provides: ar.GetArtifactProvides(),
+			Depends:  ar.GetArtifactDepends(),
 		})
 	return ar, err
 }

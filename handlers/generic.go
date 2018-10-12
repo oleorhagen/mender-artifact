@@ -27,8 +27,10 @@ import (
 )
 
 type Generic struct {
-	updateType string
-	files      map[string](*DataFile)
+	updateType        string
+	version           int
+	regularHeaderRead bool
+	files             map[string](*DataFile)
 }
 
 func NewGeneric(t string) *Generic {
@@ -67,6 +69,15 @@ func (g *Generic) ReadHeader(r io.Reader, path string, version int) error {
 	switch {
 	case filepath.Base(path) == "files":
 		files, err := parseFiles(r)
+		if version == 3 {
+			if !g.regularHeaderRead {
+				g.regularHeaderRead = true
+				if err == nil {
+					return errors.New("ReadHeader: files-list should be empty")
+				}
+				return nil
+			}
+		}
 		if err != nil {
 			return err
 		}

@@ -34,7 +34,7 @@ var Version = "unknown"
 
 // LatestFormatVersion is the latest version of the format, which is
 // also what we default to.
-const LatestFormatVersion = 2
+const LatestFormatVersion = 3
 
 func main() {
 	if err := run(); err != nil {
