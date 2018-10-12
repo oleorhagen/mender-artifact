@@ -383,15 +383,8 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumStore *artifact.ChecksumStore, ar *Reader, version []byte) (err error) {
 	switch headerName {
 	case "manifest":
-		buf := bytes.NewBuffer(nil)
-		_, err = io.Copy(buf, tReader)
-		if err != nil {
-			return errors.Wrap(err, "readHeaderV3: Failed to copy to the byte buffer, from the tar reader")
-		}
-		err = manifestChecksumStore.ReadRaw(buf.Bytes())
-		if err != nil {
-			return errors.Wrap(err, "readHeaderV3: Failed to populate the manifest's checksum store")
-		}
+		// Get the data from the manifest.
+		return readManifestHeader(ar, tReader, manifestChecksumStore)
 	case "manifest.sig":
 		ar.IsSigned = true
 		// First read and verify signature
@@ -405,15 +398,7 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 		}
 	case "manifest-augment":
 		// Get the data from the augmented manifest.
-		buf := bytes.NewBuffer(nil)
-		_, err = io.Copy(buf, tReader)
-		if err != nil {
-			return errors.Wrap(err, "handleHeaderReads: Failed to read the augmented manifest body")
-		}
-		err = manifestChecksumStore.ReadRaw(buf.Bytes())
-		if err != nil {
-			return errors.Wrap(err, "handleHeaderReads: Failed to store the checksums from the augmented manifest")
-		}
+		return readManifestHeader(ar, tReader, manifestChecksumStore)
 	case "header.tar.gz":
 		// Get and verify checksums of header.
 		hc, err := manifestChecksumStore.Get("header.tar.gz")
@@ -436,6 +421,19 @@ func handleHeaderReads(headerName string, tReader *tar.Reader, manifestChecksumS
 	default:
 		return errors.Errorf("reader: found unexpected file in artifact: %v",
 			headerName)
+	}
+	return nil
+}
+
+func readManifestHeader(ar *Reader, tReader *tar.Reader, manifestChecksumStore *artifact.ChecksumStore) error {
+	buf := bytes.NewBuffer(nil)
+	_, err := io.Copy(buf, tReader)
+	if err != nil {
+		return errors.Wrap(err, "readHeaderV3: Failed to copy to the byte buffer, from the tar reader")
+	}
+	err = manifestChecksumStore.ReadRaw(buf.Bytes())
+	if err != nil {
+		return errors.Wrap(err, "readHeaderV3: Failed to populate the manifest's checksum store")
 	}
 	return nil
 }
