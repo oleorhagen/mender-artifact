@@ -237,6 +237,28 @@ func TestReadSigned(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(),
 		"reader: expecting signed artifact")
+
+	art, err = MakeRootfsImageArtifact(3, true, false)
+	assert.NoError(t, err)
+	aReader = NewReaderSigned(art)
+	err = aReader.ReadArtifact()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),
+		"reader: verify signature callback not registered")
+
+	art, err = MakeRootfsImageArtifact(3, false, false)
+	assert.NoError(t, err)
+	aReader = NewReaderSigned(art)
+	err = aReader.ReadArtifact()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(),
+		"reader: expecting signed artifact, but no signature file found")
+
+	art, err = MakeRootfsImageArtifact(3, true, false)
+	assert.NoError(t, err)
+	aReader = NewReader(art)
+	err = aReader.ReadArtifact()
+	assert.NoError(t, err)
 }
 
 func TestRegisterMultipleHandlers(t *testing.T) {
@@ -476,4 +498,19 @@ func TestValidParsePathV3(t *testing.T) {
 		assert.Contains(t, res, test.nextToken, "%q: Failed to verify the order the artifact was parsed", name)
 		assert.Equal(t, test.validPath, validPath, "%q: ValidPath values are wrong", name)
 	}
+}
+
+func TestReadArtifactDependsAndProvides(t *testing.T) {
+	art, err := MakeRootfsImageArtifact(3, true, false)
+	require.NoError(t, err)
+	ar := NewReader(art)
+	err = ar.ReadArtifact()
+	require.NoError(t, err)
+
+	assert.Equal(t, ar.GetInfo(), artifact.Info{Format: "mender", Version: 3})
+	assert.Equal(t, *ar.GetArtifactProvides(), artifact.ArtifactProvides{ArtifactName: "mender-1.1",
+		ArtifactGroup: "group-1", SupportedUpdateTypes: []string{"rootfs-image", "delta"}})
+	assert.Equal(t, *ar.GetArtifactDepends(), artifact.ArtifactDepends{
+		ArtifactName:      []string{"mender-1.0"},
+		CompatibleDevices: []string{"vexpress"}})
 }
