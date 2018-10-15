@@ -15,7 +15,9 @@
 package artifact
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -110,6 +112,19 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 		}
 		assert.Equal(t, tt.err, e.Error(), "failing test: %v (%v)", name, tt)
 	}
+}
+
+func TestHeaderInfoV3(t *testing.T) {
+	ut := []UpdateType{UpdateType{Type: "rootfs-image"}}
+	provides := &ArtifactProvides{ArtifactName: "release-1", SupportedUpdateTypes: []string{"rootfs-image"}}
+	depends := &ArtifactDepends{CompatibleDevices: []string{"vexpress-qemu"}}
+	hi := NewHeaderInfoV3(ut, provides, depends)
+
+	assert.Equal(t, hi.GetUpdates()[0].Type, ut[0].Type)
+	assert.Equal(t, hi.GetCompatibleDevices(), depends.CompatibleDevices)
+	assert.Equal(t, hi.ArtifactDepends, depends)
+	assert.Equal(t, hi.ArtifactProvides, provides)
+	assert.Equal(t, hi.GetArtifactName(), provides.ArtifactName)
 }
 
 func TestMarshalJSONHeaderInfoV3(t *testing.T) {
@@ -296,6 +311,64 @@ func TestValidateTypeInfo(t *testing.T) {
 	}
 }
 
+func TestValidateTypeInfoV3(t *testing.T) {
+	var validateTests = map[string]struct {
+		in  TypeInfoV3
+		err error
+	}{
+		"Fail validation, update-type missing": {TypeInfoV3{}, ErrValidatingData},
+		"Update-type present":                  {TypeInfoV3{Type: "delta"}, nil},
+	}
+
+	for _, tt := range validateTests {
+		e := tt.in.Validate()
+		assert.Equal(t, errors.Cause(e), tt.err)
+	}
+}
+
+func TestWriteTypeInfoV3(t *testing.T) {
+	var validateTests = map[string]struct {
+		in  TypeInfoV3
+		err error
+	}{
+		"Update-type present": {TypeInfoV3{Type: "delta"}, nil},
+	}
+
+	for _, tt := range validateTests {
+		_, err := io.Copy(&tt.in, bytes.NewBuffer([]byte(`{"type":"delta"}`)))
+		assert.Nil(t, err)
+	}
+}
+
+func TestAugmentedHeaderInfoV3(t *testing.T) {
+	var validateTests = map[string]struct {
+		in  AugmentedHeaderInfoV3
+		err error
+	}{
+		"Fail - Missing update": {AugmentedHeaderInfoV3{}, ErrValidatingData},
+		"Update-type present":   {AugmentedHeaderInfoV3{Updates: []UpdateType{UpdateType{Type: "delta"}}}, nil},
+	}
+
+	for _, tt := range validateTests {
+		err := tt.in.Validate()
+		assert.Equal(t, errors.Cause(err), tt.err)
+	}
+}
+
+func TestWriteAugmentedHeaderInfoV3(t *testing.T) {
+	var validateTests = map[string]struct {
+		in  AugmentedHeaderInfoV3
+		err error
+	}{
+		"dummy": {AugmentedHeaderInfoV3{}, nil},
+	}
+
+	for _, tt := range validateTests {
+		_, err := io.Copy(&tt.in, bytes.NewBuffer([]byte(`{"type":"delta"}`)))
+		assert.Nil(t, err)
+	}
+}
+
 func TestMarshalJSONTypeInfoV3(t *testing.T) {
 	tests := map[string]struct {
 		ti       TypeInfoV3
@@ -372,5 +445,19 @@ func TestValidateFiles(t *testing.T) {
 		} else if e != nil && tt.err == nil {
 			t.Fatalf("[%d] Failed with error: %q, when no error expected.", idx, e)
 		}
+	}
+}
+
+func TestValideFilesV3(t *testing.T) {
+	tests := map[string]struct {
+		in  FilesV3
+		err error
+	}{
+		// FilesV3 should validate everything, files or no-files.
+		"test1": {FilesV3{&Files{[]string{"foobar"}}}, nil},
+		"test2": {FilesV3{&Files{}}, nil},
+	}
+	for _, tt := range tests {
+		assert.Nil(t, tt.in.Validate())
 	}
 }

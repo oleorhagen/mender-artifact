@@ -158,20 +158,6 @@ func writeTypeInfoV3(args *WriteInfoArgs) error {
 	return nil
 }
 
-func writeAugmentedTypeInfoV3(args *WriteInfoArgs) error {
-	tInfo := artifact.AugmentedTypeInfoV3{Type: args.updateType, ArtifactDepends: args.depends}
-	info, err := json.Marshal(&tInfo)
-	if err != nil {
-		return errors.Wrapf(err, "update: can not create type-info")
-	}
-
-	w := artifact.NewTarWriterStream(args.tarWriter)
-	if err := w.Write(info, filepath.Join(args.dir, "type-info")); err != nil {
-		return errors.Wrapf(err, "update: can not tar type-info")
-	}
-	return nil
-}
-
 func writeChecksums(tw *tar.Writer, files [](*DataFile), dir string) error {
 	for _, f := range files {
 		w := artifact.NewTarWriterStream(tw)

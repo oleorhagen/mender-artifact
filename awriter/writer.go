@@ -201,8 +201,10 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	if args.Version != 3 {
 		return errors.New("WriteArtifactV3: Wrong version number")
 	}
+
 	// Holds the checksum for the update, and 'header.tar.gz', and the 'version' file.
 	manifestChecksumStore := artifact.NewChecksumStore()
+
 	// Holds the checksum for 'header-augment.tar.gz'.
 	augManifestChecksumStore := artifact.NewChecksumStore()
 	if err := calcDataHash(manifestChecksumStore, args.Updates); err != nil {
@@ -210,6 +212,7 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	}
 	tw := tar.NewWriter(aw.w)
 	defer tw.Close()
+
 	// The header in version 3 will have the original rootfs-checksum in type-info!
 	tmpHdr, err := writeTempHeader(manifestChecksumStore, "header", writeHeader, args)
 	if err != nil {
@@ -221,6 +224,7 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 		return errors.Wrap(err, "writeArtifactV3: writeAugmentedHeader")
 	}
 	defer os.Remove(tmpAugHdr.Name())
+
 	////////////////////////
 	// write version file //
 	////////////////////////
@@ -232,6 +236,7 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	if err := sa.Write(inf, "version"); err != nil {
 		return errors.Wrapf(err, "writer: can not write version tar header")
 	}
+
 	////////////////////////////
 	// Write manifest         //
 	// Write manifest.sig     //
@@ -240,6 +245,7 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	if err = writeManifestVersion(args.Version, aw.signer, tw, manifestChecksumStore, augManifestChecksumStore, inf); err != nil {
 		return errors.Wrap(err, "WriteArtifact")
 	}
+
 	////////////////////
 	// Write header   //
 	////////////////////
@@ -250,6 +256,7 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	if err := fw.Write(tmpHdr, "header.tar.gz"); err != nil {
 		return errors.Wrapf(err, "writer: can not tar header")
 	}
+
 	/////////////////////////////
 	// Write augmented-header  //
 	/////////////////////////////
@@ -260,6 +267,7 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	if err := fw.Write(tmpAugHdr, "header-augment.tar.gz"); err != nil {
 		return errors.Wrapf(err, "writer: can not tar augmented-header")
 	}
+
 	//////////////////////////
 	// Write the datafiles  //
 	//////////////////////////
@@ -315,13 +323,13 @@ func writeScripts(tw *tar.Writer, scr *artifact.Scripts) error {
 	for _, script := range scr.Get() {
 		f, err := os.Open(script)
 		if err != nil {
-			return errors.Wrapf(err, "writer: can not open script file: %manifestChecksumStore", script)
+			return errors.Wrapf(err, "writer: can not open script file: %s", script)
 		}
 		defer f.Close()
 
 		if err :=
 			sw.Write(f, filepath.Join("scripts", filepath.Base(script))); err != nil {
-			return errors.Wrapf(err, "writer: can not store script: %manifestChecksumStore", script)
+			return errors.Wrapf(err, "writer: can not store script: %s", script)
 		}
 	}
 	return nil
@@ -363,18 +371,12 @@ func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error {
 	}
 
 	for i, upd := range args.Updates.U {
+		// TODO - Add TypeInfo depends and provides!
 		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i, Version: args.Version, Augmented: false}); err != nil {
 			return errors.Wrapf(err, "writer: error composing header")
 		}
 	}
 	return nil
-}
-
-// WriteAugHeaderArgs is a wrapper for the arguments to the writeAugmentedHeader function.
-type WriteAugHeaderArgs struct {
-	Updates          *Updates
-	typeInfoDepends  []artifact.TypeInfoDepends
-	typeInfoProvides []artifact.TypeInfoProvides
 }
 
 // writeAugmentedHeader writes the augmented header with the restrictions:
@@ -399,6 +401,7 @@ func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error 
 	for i, upd := range args.Updates.U {
 		// TODO - Add typeInfo depends and provides!
 		// Do this after the final doc-format is merged.
+		// NOTE: Augmented-header has only TypeInfo depends!
 		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i, Augmented: true, TypeInfoDepends: []artifact.TypeInfoDepends{}, TypeInfoProvides: []artifact.TypeInfoProvides{}}); err != nil {
 			return errors.Wrapf(err, "writer: error processing update directory")
 		}

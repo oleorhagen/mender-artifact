@@ -326,9 +326,9 @@ type TypeInfoV3 struct {
 	Type string `json:"type"`
 	// Checksum of the image that needs to be installed on the device in order to
 	// apply the current update.
-	ArtifactDepends []TypeInfoDepends `json:"artifact_depends"`
+	ArtifactDepends []TypeInfoDepends `json:"artifact_depends,omitempty"`
 	// Checksum of the image currently installed on the device.
-	ArtifactProvides []TypeInfoProvides `json:"artifact_provides"`
+	ArtifactProvides []TypeInfoProvides `json:"artifact_provides,omitempty"`
 }
 
 // Validate checks that the required `Type` field is set.
@@ -341,32 +341,6 @@ func (ti *TypeInfoV3) Validate() error {
 
 // Write writes the underlying struct into a json data structure (bytestream).
 func (ti *TypeInfoV3) Write(b []byte) (n int, err error) {
-	if err := decode(b, ti); err != nil {
-		return 0, err
-	}
-	return len(b), nil
-}
-
-// TypeInfoV3 provides information about the type of update contained within the
-// header-augment structure.
-type AugmentedTypeInfoV3 struct {
-	// Rootfs/Delta (Required).
-	Type string `json:"type"`
-	// Checksum of the image that needs to be installed on the device in order to
-	// apply the current update.
-	ArtifactDepends []TypeInfoDepends `json:"artifact_depends"`
-}
-
-// Validate checks that the required `Type` field is set.
-func (ti *AugmentedTypeInfoV3) Validate() error {
-	if ti.Type == "" {
-		return errors.Wrap(ErrValidatingData, "TypeInfoV3: ")
-	}
-	return nil
-}
-
-// Write writes the underlying struct into a json data structure (bytestream).
-func (ti *AugmentedTypeInfoV3) Write(b []byte) (n int, err error) {
 	if err := decode(b, ti); err != nil {
 		return 0, err
 	}

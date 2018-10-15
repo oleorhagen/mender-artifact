@@ -15,9 +15,7 @@
 package main
 
 import (
-	"crypto/sha256"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
@@ -46,19 +44,6 @@ func validateInput(c *cli.Context) error {
 		)
 	}
 	return nil
-}
-
-func getRootfsChecksum(rootfs string) (string, error) {
-	partf, err := os.OpenFile(rootfs, os.O_RDONLY, os.ModeDevice)
-	if err != nil {
-		return "", errors.Wrapf(err, "getRootfsChecksum: failed to open rootfs: %s", rootfs)
-	}
-	h := sha256.New()
-	if _, err = io.Copy(h, partf); err != nil {
-		return "", errors.Wrap(err, "getRootfsChecksum: failed to calculate the checksum of the inactive partition")
-	}
-	checksumHex := fmt.Sprintf("%x", h.Sum(nil))
-	return checksumHex, nil
 }
 
 func writeRootfs(c *cli.Context) error {
