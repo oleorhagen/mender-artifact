@@ -33,30 +33,30 @@ func validate(art io.Reader, key []byte) error {
 	// just continue checking consistency and return info if
 	// signature verification failed
 	var validationError error
-	verify := func(message, sig []byte) error {
-		verifyCallback := func(message, sig []byte) error {
-			return errors.New("artifact is signed but no verification key was provided")
-		}
-		if key != nil {
-			s := artifact.NewVerifier(key)
-			verifyCallback = s.Verify
-		}
 
-		if verifyCallback != nil {
-			if err := verifyCallback(message, sig); err != nil {
+	// Some callers pass nil, others pass "", to indicate a missing public key.
+	keyIsSpecified := (key != nil) && (len(key) > 0)
+
+	ar := areader.NewReader(art)
+	ar.VerifySignatureCallback = func(message, sig []byte) error {
+		if keyIsSpecified {
+			s := artifact.NewVerifier(key)
+			if err := s.Verify(message, sig); err != nil {
 				validationError = err
 			}
 		}
 		return nil
 	}
 
-	ar := areader.NewReader(art)
-	ar.VerifySignatureCallback = verify
 	if err := ar.ReadArtifact(); err != nil {
 		return err
 	}
 	if validationError != nil {
 		Log.Debugf("error validating signature: %s", validationError.Error())
+		return ErrInvalidSignature
+	}
+	if keyIsSpecified && !ar.IsSigned {
+		Log.Debug("key was specified but no digital signature was found")
 		return ErrInvalidSignature
 	}
 	return nil
