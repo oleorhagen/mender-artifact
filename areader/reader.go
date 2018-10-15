@@ -340,16 +340,6 @@ func (ar *Reader) readHeaderV3(tReader *tar.Reader,
 	manifestChecksumStore := artifact.NewChecksumStore()
 	parsePath := []string{}
 
-	// Register the update handler.
-	rootfs := handlers.NewRootfsInstaller()
-	rootfs.InstallHandler = func(r io.Reader, df *handlers.DataFile) error {
-		// This is to get the checksum for a artifact-version 3 read,
-		// as it does not use the generic reader.
-		_, err := io.Copy(ioutil.Discard, r)
-		return err
-	}
-	ar.RegisterHandler(rootfs)
-
 	for {
 		hdr, err := tReader.Next()
 		if err == io.EOF {
@@ -596,6 +586,12 @@ func (ar *Reader) setInstallers(upd []artifact.UpdateType) error {
 			}
 			ar.installers[i] = w.Copy()
 			continue
+		}
+		// NOTE: ArtifactV3 specific:
+		// Do not update the installer between the reads of the regular and augmented header,
+		// as the installer has internal state.
+		if ar.installers[i] != nil {
+			return nil
 		}
 		// if nothing else worked set generic installer for given update
 		ar.installers[i] = handlers.NewGeneric(update.Type)
