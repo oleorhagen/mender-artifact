@@ -363,6 +363,98 @@ func TestWriteArtifactV3(t *testing.T) {
 	})
 	assert.Error(t, err)
 	buf.Reset()
+
+	// Test errors returned on write-errors.
+	// NOTE: The failOnWriteNr could change if the underlying
+	// writing of the artifact changes, and thus has to be manually
+	// changed to fail on the correct write later. Hopefully this should not happen
+	// though, as the artifact format stays constant once implemented.
+
+	// Fail writing artifact version
+	failBuf := &TestErrWriter{FailOnWriteNr: 1}
+	w = NewWriterSigned(failBuf, s)
+	u = handlers.NewRootfsV3(upd)
+	updates = &Updates{U: []handlers.Composer{u}} // Update existing.
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates,
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      []string{"depends-name"},
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
+	})
+	assert.Contains(t, err.Error(), "writer: can not write version tar header")
+
+	// Fail writing artifact manifest.
+	failBuf = &TestErrWriter{FailOnWriteNr: 3}
+	w = NewWriterSigned(failBuf, s)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates, // Update existing.
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      []string{"depends-name"},
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
+	})
+	assert.Contains(t, err.Error(), "WriteArtifact: writer: can not write manifest stream")
+
+	// Fail writing artifact header.
+	failBuf = &TestErrWriter{FailOnWriteNr: 12}
+	w = NewWriterSigned(failBuf, s)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates, // Update existing.
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      []string{"depends-name"},
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
+	})
+	assert.Contains(t, err.Error(), "writer: can not tar header")
+
+	// Fail writing artifact header-augment.
+	failBuf = &TestErrWriter{FailOnWriteNr: 15}
+	w = NewWriterSigned(failBuf, s)
+	err = w.WriteArtifact(&WriteArtifactArgs{
+		Format:  "mender",
+		Version: 3,
+		Devices: []string{"vexpress-qemu"},
+		Name:    "name",
+		Updates: updates, // Update existing.
+		Provides: &artifact.ArtifactProvides{
+			ArtifactName:         "name",
+			ArtifactGroup:        "group-1",
+			SupportedUpdateTypes: []string{"rootfs"},
+		},
+		Depends: &artifact.ArtifactDepends{
+			ArtifactName:      []string{"depends-name"},
+			CompatibleDevices: []string{"vexpress-qemu"},
+		},
+	})
+	assert.Contains(t, err.Error(), "writer: can not tar augmented-header")
 }
 
 func TestWithScripts(t *testing.T) {
@@ -395,6 +487,77 @@ func TestWithScripts(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.NoError(t, checkTarElements(buf, 3))
+}
+
+// TestErrWriter is a utility for simulating failed writes during tests.
+type TestErrWriter struct {
+	FailOnWriteNr int
+	writeNr       int
+}
+
+func (t *TestErrWriter) Write(b []byte) (n int, err error) {
+	if t.writeNr+1 == t.FailOnWriteNr {
+		return 0, io.ErrUnexpectedEOF
+	}
+	t.writeNr += 1
+	return len(b), nil
+}
+
+func TestWriteManifestVersion(t *testing.T) {
+	testcases := map[string]struct {
+		version  int
+		signer   artifact.Signer
+		tw       *tar.Writer
+		mchk     *artifact.ChecksumStore
+		augmchk  *artifact.ChecksumStore
+		aistream []byte
+		err      string
+	}{
+		"wrong version": {version: -1,
+			err: "writer: unsupported artifact version: -1"},
+		"version 2, fail on write to manifest checksum store": {
+			version: 2,
+			mchk:    artifact.NewChecksumStore(),
+			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteNr: 1}),
+			err:     "writer: can not write manifest stream",
+		},
+		"version 2, fail on signature write": {
+			version: 2,
+			mchk:    artifact.NewChecksumStore(),
+			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteNr: 4}),
+			signer:  artifact.NewSigner([]byte(PrivateKey)),
+			err:     "writer: can not tar signature",
+		},
+		"version 3, fail on write to manifest checksum store": {
+			version: 3,
+			mchk:    artifact.NewChecksumStore(),
+			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteNr: 1}),
+			err:     "writer: can not write manifest stream",
+		},
+		"version 3, fail on signature write": {
+			version: 3,
+			mchk:    artifact.NewChecksumStore(),
+			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteNr: 4}),
+			signer:  artifact.NewSigner([]byte(PrivateKey)),
+			err:     "writer: can not tar signature",
+		},
+		"version 3, fail write augmented-manifest": {
+			version: 3,
+			mchk:    artifact.NewChecksumStore(),
+			augmchk: artifact.NewChecksumStore(),
+			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteNr: 6}),
+			signer:  artifact.NewSigner([]byte(PrivateKey)),
+			err:     "writer: can not write manifest stream",
+		},
+	}
+
+	for name, test := range testcases {
+		t.Log(name)
+		err := writeManifestVersion(test.version, test.signer, test.tw, test.mchk, test.augmchk, test.aistream)
+		if test.err != "" {
+			assert.Contains(t, err.Error(), test.err)
+		}
+	}
 }
 
 type TestDirEntry struct {

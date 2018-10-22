@@ -84,6 +84,31 @@ func TestRootfsCompose(t *testing.T) {
 	})
 	assert.NoError(t, err, "failed to compose the rootfs header - version 3")
 
+	// Artifact format version 3, augmented
+	r = NewRootfsV3(f.Name())
+	err = r.ComposeHeader(&ComposeHeaderArgs{
+		TarWriter: tw,
+		Augmented: true,
+		No:        3,
+	})
+	assert.NoError(t, err, "failed to compose the rootfs header - version 3")
+
+	// Artifact format version 3, augmented - fail write.
+	r = NewRootfsV3(f.Name())
+	tw = tar.NewWriter(new(TestErrWriter))
+	err = r.ComposeHeader(&ComposeHeaderArgs{
+		TarWriter: tw,
+		Augmented: true,
+		No:        3,
+	})
+	assert.Contains(t, err.Error(), "writer: can not tar files")
+
+}
+
+type TestErrWriter bytes.Buffer
+
+func (t *TestErrWriter) Write(b []byte) (n int, err error) {
+	return 0, io.ErrUnexpectedEOF
 }
 
 func TestRootfsReadHeader(t *testing.T) {
@@ -91,6 +116,7 @@ func TestRootfsReadHeader(t *testing.T) {
 	r = NewRootfsV1("custom")
 
 	tc := []struct {
+		version   int
 		rootfs    Installer
 		data      string
 		name      string
@@ -98,22 +124,23 @@ func TestRootfsReadHeader(t *testing.T) {
 		errMsg    string
 	}{
 		{rootfs: r, data: "invalid", name: "headers/0000/files", shouldErr: true,
-			errMsg: "error validating data"},
+			errMsg: "error validating data", version: 2},
 		{rootfs: r, data: `{"files":["update.ext4", "next_update.ext4"]}`,
-			name: "headers/0000/files", shouldErr: false},
+			name: "headers/0000/files", shouldErr: false, version: 2},
 		{rootfs: r, data: `1212121212121212121212121212`,
-			name: "headers/0000/checksums/update.ext4.sum", shouldErr: false},
+			name: "headers/0000/checksums/update.ext4.sum", shouldErr: false, version: 2},
 		{rootfs: r, data: "", name: "headers/0000/non-existing", shouldErr: true,
-			errMsg: "unsupported file"},
-		{rootfs: r, data: "data", name: "headers/0000/type-info", shouldErr: false},
-		{rootfs: r, data: "", name: "headers/0000/meta-data", shouldErr: false},
-		{rootfs: r, data: "", name: "headers/0000/scripts/pre/my_script", shouldErr: false},
-		{rootfs: r, data: "", name: "headers/0000/scripts/post/my_script", shouldErr: false},
-		{rootfs: r, data: "", name: "headers/0000/scripts/check/my_script", shouldErr: false},
-		{rootfs: r, data: "", name: "headers/0000/signatures/update.sig", shouldErr: false},
-		{rootfs: NewRootfsV3("custom"), data: "invalid", name: "headers/0000/files", shouldErr: true,
-			errMsg: "error validating data"},
-		{rootfs: NewRootfsV3("custom"), data: "", name: "headers/0000/signatures/update.sig", shouldErr: false},
+			errMsg: "unsupported file", version: 2},
+		{rootfs: r, data: "data", name: "headers/0000/type-info", shouldErr: false, version: 2},
+		{rootfs: r, data: "", name: "headers/0000/meta-data", shouldErr: false, version: 2},
+		{rootfs: r, data: "", name: "headers/0000/scripts/pre/my_script", shouldErr: false, version: 2},
+		{rootfs: r, data: "", name: "headers/0000/scripts/post/my_script", shouldErr: false, version: 2},
+		{rootfs: r, data: "", name: "headers/0000/scripts/check/my_script", shouldErr: false, version: 2},
+		{rootfs: r, data: "", name: "headers/0000/signatures/update.sig", shouldErr: false, version: 2},
+		/////////////////////////
+		// Version 3 specifics //
+		/////////////////////////
+		{rootfs: NewRootfsV3("custom"), data: `{"files":["update.ext4", "next_update.ext4"]}`, name: "headers/0000/files", shouldErr: true, version: 3},
 	}
 
 	for _, test := range tc {
@@ -134,11 +161,16 @@ func TestRootfsReadHeader(t *testing.T) {
 		_, err = tr.Next()
 		assert.NoError(t, err)
 
-		err = r.ReadHeader(buf, test.name, 2)
+		err = r.ReadHeader(buf, test.name, test.version)
 		if test.shouldErr {
 			assert.Error(t, err)
 			if test.errMsg != "" {
 				assert.Contains(t, errors.Cause(err).Error(), test.errMsg)
+			}
+			// Second read in version 3 should accept files in the header.
+			if test.version == 3 {
+				err = r.ReadHeader(bytes.NewReader([]byte(test.data)), test.name, test.version)
+				assert.NoError(t, err)
 			}
 		} else {
 			assert.NoError(t, err)

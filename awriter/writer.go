@@ -198,9 +198,6 @@ func (aw *Writer) writeArtifactV1V2(args *WriteArtifactArgs) error {
 }
 
 func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
-	if args.Version != 3 {
-		return errors.New("WriteArtifactV3: Wrong version number")
-	}
 
 	// Holds the checksum for the update, and 'header.tar.gz', and the 'version' file.
 	manifestChecksumStore := artifact.NewChecksumStore()
