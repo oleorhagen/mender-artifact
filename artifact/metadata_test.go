@@ -104,13 +104,23 @@ func TestValidateHeaderInfoV3(t *testing.T) {
 			err: ""},
 		"wrong headerinfo": {
 			err: "Artifact validation failed with missing arguments: No updates added, Empty artifact provides"},
+
+		"Empty updates": {
+			in:  HeaderInfoV3{Updates: []UpdateType{UpdateType{}}},
+			err: "Empty update"},
+		"Empty Artifact name": {
+			in:  HeaderInfoV3{Updates: []UpdateType{UpdateType{}}, ArtifactProvides: &ArtifactProvides{}},
+			err: "Artifact name"},
+		"Empty supported update type": {
+			in:  HeaderInfoV3{Updates: []UpdateType{UpdateType{}}, ArtifactProvides: &ArtifactProvides{}},
+			err: "Supported update type"},
 	}
 	for name, tt := range tests {
 		e := tt.in.Validate()
 		if tt.err == "" && e == nil {
 			continue
 		}
-		assert.Equal(t, tt.err, e.Error(), "failing test: %v (%v)", name, tt)
+		assert.Contains(t, e.Error(), tt.err, "failing test: %v (%v)", name, tt)
 	}
 }
 
@@ -466,4 +476,11 @@ func TestValideFilesV3(t *testing.T) {
 	for _, tt := range tests {
 		assert.Nil(t, tt.in.Validate())
 	}
+}
+
+func TestHeaderInfo(t *testing.T) {
+	hi := NewHeaderInfo("release-1", []UpdateType{UpdateType{Type: "rootfs-image"}}, []string{"vexpress-qemu"})
+	assert.Equal(t, hi.GetArtifactName(), "release-1")
+	assert.Equal(t, hi.Updates[0].Type, "rootfs-image")
+	assert.Equal(t, hi.GetCompatibleDevices()[0], "vexpress-qemu")
 }
