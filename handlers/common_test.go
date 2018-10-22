@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,15 +28,14 @@ func TestWriteTypeInfoV3(t *testing.T) {
 	buf := bytes.NewBuffer(nil)
 	err := writeTypeInfoV3(&WriteInfoArgs{
 		tarWriter:  tar.NewWriter(buf),
-		updateType: "foobar",
+		typeinfov3: &artifact.TypeInfoV3{Type: "foobar"},
 	})
 	assert.NoError(t, err)
 	assert.Contains(t, buf.String(), `"type":"foobar"`)
 
 	// Fail write
 	err = writeTypeInfoV3(&WriteInfoArgs{
-		tarWriter:  tar.NewWriter(&TestErrWriter{}),
-		updateType: "foobar",
+		tarWriter: tar.NewWriter(&TestErrWriter{}),
 	})
 	assert.Contains(t, err.Error(), "unexpected EOF")
 }

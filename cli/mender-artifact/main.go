@@ -109,6 +109,14 @@ func run() error {
 			Name:  "depends-groups",
 			Usage: "The group(s) the artifact depends on",
 		},
+		cli.StringFlag{
+			Name:  "depends-rootfs-image-checksum",
+			Usage: "The checksum of the rootfs image which this artifact depends upon",
+		},
+		cli.StringFlag{
+			Name:  "provides-rootfs-image-checksum",
+			Usage: "The checksum of the rootfs image which this artifact provides",
+		},
 	}
 
 	writeCommand := cli.Command{

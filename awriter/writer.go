@@ -125,14 +125,15 @@ func WriteSignature(tw *tar.Writer, message []byte,
 }
 
 type WriteArtifactArgs struct {
-	Format   string
-	Version  int
-	Devices  []string
-	Name     string
-	Updates  *Updates
-	Scripts  *artifact.Scripts
-	Depends  *artifact.ArtifactDepends
-	Provides *artifact.ArtifactProvides
+	Format     string
+	Version    int
+	Devices    []string
+	Name       string
+	Updates    *Updates
+	Scripts    *artifact.Scripts
+	Depends    *artifact.ArtifactDepends
+	Provides   *artifact.ArtifactProvides
+	TypeInfoV3 *artifact.TypeInfoV3
 }
 
 func (aw *Writer) WriteArtifact(args *WriteArtifactArgs) (err error) {
@@ -368,8 +369,7 @@ func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error {
 	}
 
 	for i, upd := range args.Updates.U {
-		// TODO - Add TypeInfo depends and provides!
-		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i, Version: args.Version, Augmented: false}); err != nil {
+		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i, Version: args.Version, Augmented: false, TypeInfoV3: args.TypeInfoV3}); err != nil {
 			return errors.Wrapf(err, "writer: error composing header")
 		}
 	}
@@ -385,7 +385,6 @@ func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error 
 		hInfo.Updates =
 			append(hInfo.Updates, artifact.UpdateType{Type: upd.GetType()})
 	}
-	// Augmented header only has artifact-depends.
 	sa := artifact.NewTarWriterStream(tarWriter)
 	stream, err := artifact.ToStream(hInfo)
 	if err != nil {
@@ -396,10 +395,7 @@ func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error 
 	}
 
 	for i, upd := range args.Updates.U {
-		// TODO - Add typeInfo depends and provides!
-		// Do this after the final doc-format is merged.
-		// NOTE: Augmented-header has only TypeInfo depends!
-		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i, Augmented: true, TypeInfoDepends: artifact.TypeInfoDepends{}, TypeInfoProvides: artifact.TypeInfoProvides{}}); err != nil {
+		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i, Augmented: true, TypeInfoV3: args.TypeInfoV3}); err != nil {
 			return errors.Wrapf(err, "writer: error processing update directory")
 		}
 	}

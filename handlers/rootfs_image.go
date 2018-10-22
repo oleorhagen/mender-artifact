@@ -158,6 +158,10 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 				path); err != nil {
 				return err
 			}
+			// Remove the typeinfov3.depends, as this should not be written in the augmented-header.
+			if args.TypeInfoV3 != nil {
+				args.TypeInfoV3.ArtifactProvides = nil
+			}
 		} else {
 			// The header in a version 3 artifact will not contain the update,
 			// and hence there is no files in the files list.
@@ -169,10 +173,8 @@ func (rfs *Rootfs) ComposeHeader(args *ComposeHeaderArgs) error {
 
 		if err := writeTypeInfoV3(&WriteInfoArgs{
 			tarWriter:  args.TarWriter,
-			updateType: "rootfs-image",
 			dir:        path,
-			depends:    args.TypeInfoDepends,
-			provides:   args.TypeInfoProvides,
+			typeinfov3: args.TypeInfoV3,
 		}); err != nil {
 			return errors.Wrap(err, "ComposeHeader: ")
 		}

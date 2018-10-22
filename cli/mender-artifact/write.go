@@ -119,16 +119,23 @@ func writeRootfs(c *cli.Context) error {
 		SupportedUpdateTypes: updateTypesSupported,
 	}
 
+	typeInfoV3 := artifact.TypeInfoV3{
+		Type:             updateTypesSupported[0], // TODO - update this when other update types are added.
+		ArtifactDepends:  &artifact.TypeInfoDepends{RootfsChecksum: c.String("depends-rootfs-image-checksum")},
+		ArtifactProvides: &artifact.TypeInfoProvides{RootfsChecksum: c.String("provides-rootfs-image-checksum")},
+	}
+
 	err = aw.WriteArtifact(
 		&awriter.WriteArtifactArgs{
-			Format:   "mender",
-			Version:  version,
-			Devices:  c.StringSlice("device-type"),
-			Name:     c.String("artifact-name"),
-			Updates:  upd,
-			Scripts:  scr,
-			Depends:  &depends,
-			Provides: &provides,
+			Format:     "mender",
+			Version:    version,
+			Devices:    c.StringSlice("device-type"),
+			Name:       c.String("artifact-name"),
+			Updates:    upd,
+			Scripts:    scr,
+			Depends:    &depends,
+			Provides:   &provides,
+			TypeInfoV3: &typeInfoV3,
 		})
 	if err != nil {
 		return cli.NewExitError(err.Error(), 1)

@@ -40,12 +40,11 @@ type DataFile struct {
 }
 
 type ComposeHeaderArgs struct {
-	TarWriter        *tar.Writer
-	No               int
-	Version          int
-	Augmented        bool
-	TypeInfoDepends  artifact.TypeInfoDepends
-	TypeInfoProvides artifact.TypeInfoProvides
+	TarWriter  *tar.Writer
+	No         int
+	Version    int
+	Augmented  bool
+	TypeInfoV3 *artifact.TypeInfoV3
 }
 
 type Composer interface {
@@ -134,19 +133,12 @@ func writeTypeInfo(tw *tar.Writer, updateType string, dir string) error {
 
 type WriteInfoArgs struct {
 	tarWriter  *tar.Writer
-	updateType string
 	dir        string
-	provides   artifact.TypeInfoProvides
-	depends    artifact.TypeInfoDepends
+	typeinfov3 *artifact.TypeInfoV3
 }
 
 func writeTypeInfoV3(args *WriteInfoArgs) error {
-	tInfo := artifact.TypeInfoV3{
-		Type:             args.updateType,
-		ArtifactProvides: args.provides,
-		ArtifactDepends:  args.depends,
-	}
-	info, err := json.Marshal(&tInfo)
+	info, err := json.Marshal(args.typeinfov3)
 	if err != nil {
 		return errors.Wrapf(err, "update: can not create type-info")
 	}
