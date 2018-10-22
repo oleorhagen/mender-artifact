@@ -377,23 +377,21 @@ func TestMarshalJSONTypeInfoV3(t *testing.T) {
 		"delta": {
 			ti: TypeInfoV3{
 				Type: "delta",
-				ArtifactDepends: []TypeInfoDepends{
-					{RootfsChecksum: "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"}},
-				ArtifactProvides: []TypeInfoProvides{
-					{RootfsChecksum: "853jsdfh342789sdflkjsdf987324kljsdf987234kjljsdf987234klsdf987d8"}},
+				ArtifactDepends: TypeInfoDepends{
+					RootfsChecksum: "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619",
+				},
+				ArtifactProvides: TypeInfoProvides{
+					RootfsChecksum: "853jsdfh342789sdflkjsdf987324kljsdf987234kjljsdf987234klsdf987d8",
+				},
 			},
 			expected: `{
-				      "type": "delta",
-				      "artifact_depends": [
-					      {
-						      "rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
-					      }
-				      ],
-				      "artifact_provides": [
-					      {
-						      "rootfs_image_checksum": "853jsdfh342789sdflkjsdf987324kljsdf987234kjljsdf987234klsdf987d8"
-					      }
-				      ]
+				"type": "delta",
+				"artifact_depends": {
+					"rootfs_image_checksum": "4d480539cdb23a4aee6330ff80673a5af92b7793eb1c57c4694532f96383b619"
+				},
+				"artifact_provides": {
+					"rootfs_image_checksum": "853jsdfh342789sdflkjsdf987324kljsdf987234kjljsdf987234klsdf987d8"
+				}
 			      }`,
 		},
 	}

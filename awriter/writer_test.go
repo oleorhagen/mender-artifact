@@ -551,8 +551,7 @@ func TestWriteManifestVersion(t *testing.T) {
 		},
 	}
 
-	for name, test := range testcases {
-		t.Log(name)
+	for _, test := range testcases {
 		err := writeManifestVersion(test.version, test.signer, test.tw, test.mchk, test.augmchk, test.aistream)
 		if test.err != "" {
 			assert.Contains(t, err.Error(), test.err)

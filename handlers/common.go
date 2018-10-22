@@ -44,8 +44,8 @@ type ComposeHeaderArgs struct {
 	No               int
 	Version          int
 	Augmented        bool
-	TypeInfoDepends  []artifact.TypeInfoDepends
-	TypeInfoProvides []artifact.TypeInfoProvides
+	TypeInfoDepends  artifact.TypeInfoDepends
+	TypeInfoProvides artifact.TypeInfoProvides
 }
 
 type Composer interface {
@@ -136,8 +136,8 @@ type WriteInfoArgs struct {
 	tarWriter  *tar.Writer
 	updateType string
 	dir        string
-	provides   []artifact.TypeInfoProvides
-	depends    []artifact.TypeInfoDepends
+	provides   artifact.TypeInfoProvides
+	depends    artifact.TypeInfoDepends
 }
 
 func writeTypeInfoV3(args *WriteInfoArgs) error {

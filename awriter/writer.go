@@ -399,7 +399,7 @@ func writeAugmentedHeader(tarWriter *tar.Writer, args *WriteArtifactArgs) error 
 		// TODO - Add typeInfo depends and provides!
 		// Do this after the final doc-format is merged.
 		// NOTE: Augmented-header has only TypeInfo depends!
-		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i, Augmented: true, TypeInfoDepends: []artifact.TypeInfoDepends{}, TypeInfoProvides: []artifact.TypeInfoProvides{}}); err != nil {
+		if err := upd.ComposeHeader(&handlers.ComposeHeaderArgs{TarWriter: tarWriter, No: i, Augmented: true, TypeInfoDepends: artifact.TypeInfoDepends{}, TypeInfoProvides: artifact.TypeInfoProvides{}}); err != nil {
 			return errors.Wrapf(err, "writer: error processing update directory")
 		}
 	}
