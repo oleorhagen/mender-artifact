@@ -371,7 +371,7 @@ func TestWriteArtifactV3(t *testing.T) {
 	// though, as the artifact format stays constant once implemented.
 
 	// Fail writing artifact version
-	failBuf := &TestErrWriter{FailOnWriteNr: 1}
+	failBuf := &TestErrWriter{FailOnWriteData: []byte("version")}
 	w = NewWriterSigned(failBuf, s)
 	u = handlers.NewRootfsV3(upd)
 	updates = &Updates{U: []handlers.Composer{u}} // Update existing.
@@ -394,7 +394,7 @@ func TestWriteArtifactV3(t *testing.T) {
 	assert.Contains(t, err.Error(), "writer: can not write version tar header")
 
 	// Fail writing artifact manifest.
-	failBuf = &TestErrWriter{FailOnWriteNr: 3}
+	failBuf = &TestErrWriter{FailOnWriteData: []byte("manifest")}
 	w = NewWriterSigned(failBuf, s)
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
@@ -415,7 +415,7 @@ func TestWriteArtifactV3(t *testing.T) {
 	assert.Contains(t, err.Error(), "WriteArtifact: writer: can not write manifest stream")
 
 	// Fail writing artifact header.
-	failBuf = &TestErrWriter{FailOnWriteNr: 12}
+	failBuf = &TestErrWriter{FailOnWriteData: []byte("header.tar.gz")}
 	w = NewWriterSigned(failBuf, s)
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
@@ -436,7 +436,7 @@ func TestWriteArtifactV3(t *testing.T) {
 	assert.Contains(t, err.Error(), "writer: can not tar header")
 
 	// Fail writing artifact header-augment.
-	failBuf = &TestErrWriter{FailOnWriteNr: 15}
+	failBuf = &TestErrWriter{FailOnWriteData: []byte("header-augment.tar.gz")}
 	w = NewWriterSigned(failBuf, s)
 	err = w.WriteArtifact(&WriteArtifactArgs{
 		Format:  "mender",
@@ -491,15 +491,13 @@ func TestWithScripts(t *testing.T) {
 
 // TestErrWriter is a utility for simulating failed writes during tests.
 type TestErrWriter struct {
-	FailOnWriteNr int
-	writeNr       int
+	FailOnWriteData []byte
 }
 
 func (t *TestErrWriter) Write(b []byte) (n int, err error) {
-	if t.writeNr+1 == t.FailOnWriteNr {
+	if bytes.HasPrefix(b, t.FailOnWriteData) {
 		return 0, io.ErrUnexpectedEOF
 	}
-	t.writeNr += 1
 	return len(b), nil
 }
 
@@ -518,26 +516,26 @@ func TestWriteManifestVersion(t *testing.T) {
 		"version 2, fail on write to manifest checksum store": {
 			version: 2,
 			mchk:    artifact.NewChecksumStore(),
-			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteNr: 1}),
+			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteData: []byte("manifest")}),
 			err:     "writer: can not write manifest stream",
 		},
 		"version 2, fail on signature write": {
 			version: 2,
 			mchk:    artifact.NewChecksumStore(),
-			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteNr: 4}),
+			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteData: []byte("manifest.sig")}),
 			signer:  artifact.NewSigner([]byte(PrivateKey)),
 			err:     "writer: can not tar signature",
 		},
 		"version 3, fail on write to manifest checksum store": {
 			version: 3,
 			mchk:    artifact.NewChecksumStore(),
-			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteNr: 1}),
+			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteData: []byte("manifest")}),
 			err:     "writer: can not write manifest stream",
 		},
 		"version 3, fail on signature write": {
 			version: 3,
 			mchk:    artifact.NewChecksumStore(),
-			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteNr: 4}),
+			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteData: []byte("manifest.sig")}),
 			signer:  artifact.NewSigner([]byte(PrivateKey)),
 			err:     "writer: can not tar signature",
 		},
@@ -545,7 +543,7 @@ func TestWriteManifestVersion(t *testing.T) {
 			version: 3,
 			mchk:    artifact.NewChecksumStore(),
 			augmchk: artifact.NewChecksumStore(),
-			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteNr: 6}),
+			tw:      tar.NewWriter(&TestErrWriter{FailOnWriteData: []byte("manifest-augment")}),
 			signer:  artifact.NewSigner([]byte(PrivateKey)),
 			err:     "writer: can not write manifest stream",
 		},
