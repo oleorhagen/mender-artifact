@@ -36,7 +36,7 @@ const (
 
 	// empty placeholder, so that we can write virtualPartitionFile.Open()
 	// as the API call (better semantics).
-	virtualPartitionFile vFile = 1
+	VirtualPartitionFile vFile = 1
 )
 
 // V(irtual)P(artition)File mimicks a file in an Artifact or on an sdimg.
@@ -220,6 +220,9 @@ type artifactExtFile struct {
 
 func newArtifactExtFile(comp artifact.Compressor, key, fpath string, p partition) (af *artifactExtFile, err error) {
 	tmpf, err := ioutil.TempFile("", "mendertmp-artifactextfile")
+	if err != nil {
+		return nil, err
+	}
 	// Cleanup resources in case of error.
 	af = &artifactExtFile{
 		extFile{
@@ -230,15 +233,16 @@ func newArtifactExtFile(comp artifact.Compressor, key, fpath string, p partition
 		},
 		comp,
 	}
-	if err != nil {
-		return af, err
-	}
 	reg := regexp.MustCompile("/(uboot|boot/(efi|grub))")
 	if reg.MatchString(fpath) {
-		return af, errors.New("newArtifactExtFile: A mender artifact does not contain a boot partition, only a rootfs")
+		tmpf.Close()
+		os.Remove(tmpf.Name())
+		return nil, errors.New("newArtifactExtFile: A mender artifact does not contain a boot partition, only a rootfs")
 	}
 	if strings.HasPrefix(fpath, "/data") {
-		return af, errors.New("newArtifactExtFile: A mender artifact does not contain a data partition, only a rootfs")
+		tmpf.Close()
+		os.Remove(tmpf.Name())
+		return nil, errors.New("newArtifactExtFile: A mender artifact does not contain a data partition, only a rootfs")
 	}
 	return af, nil
 }
@@ -270,6 +274,9 @@ type extFile struct {
 
 func newExtFile(key, imagefilepath string, p partition) (e *extFile, err error) {
 	tmpf, err := ioutil.TempFile("", "mendertmp-extfile")
+	if err != nil {
+		return nil, err
+	}
 	// Cleanup resources in case of error.
 	e = &extFile{
 		partition:     p,
@@ -277,7 +284,7 @@ func newExtFile(key, imagefilepath string, p partition) (e *extFile, err error) 
 		imagefilepath: imagefilepath,
 		tmpf:          tmpf,
 	}
-	return e, err
+	return e, nil
 }
 
 // Write reads all bytes from b into the partitionFile using debugfs.
@@ -347,12 +354,15 @@ type fatFile struct {
 
 func newFatFile(imageFilePath string, partition partition) (*fatFile, error) {
 	tmpf, err := ioutil.TempFile("", "mendertmp-fatfile")
+	if err != nil {
+		return nil, err
+	}
 	ff := &fatFile{
 		partition:     partition,
 		imageFilePath: imageFilePath,
 		tmpf:          tmpf,
 	}
-	return ff, err
+	return ff, nil
 }
 
 // Read Dump the file contents to stdout, and capture, using MTools' mtype

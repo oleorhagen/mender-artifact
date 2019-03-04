@@ -37,15 +37,11 @@ func Cat(c *cli.Context) (err error) {
 	if !isimg.MatchString(c.Args().First()) {
 		return cli.NewExitError("The input image does not seem to be a valid image", 1)
 	}
-	r, err := virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
-	defer func() {
-		if r != nil {
-			r.Close()
-		}
-	}()
+	r, err := VirtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
 	}
+	defer r.Close()
 	var w io.WriteCloser = os.Stdout
 	if _, err = io.Copy(w, r); err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to copy from: %s to stdout: err: %v", c.Args().First(), err), 1)
@@ -62,9 +58,6 @@ func Copy(c *cli.Context) (err error) {
 	var r io.ReadCloser
 	var w io.WriteCloser
 	wclose := func(w io.Closer) {
-		if w == nil {
-			return
-		}
 		cerr := w.Close()
 		if err == nil {
 			err = cerr
@@ -78,32 +71,32 @@ func Copy(c *cli.Context) (err error) {
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		vfile, err = virtualPartitionFile.Open(comp, c.Args().Get(1), c.String("key"))
-		defer wclose(vfile)
+		vfile, err = VirtualPartitionFile.Open(comp, c.Args().Get(1), c.String("key"))
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
+		defer wclose(vfile)
 		w = vfile
 	case copyinstdin:
 		r = os.Stdin
-		vfile, err = virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
-		defer wclose(vfile)
+		vfile, err = VirtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
+		defer wclose(vfile)
 		w = vfile
 	case copyout:
-		vfile, err = virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
-		defer wclose(vfile)
+		vfile, err = VirtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
+		defer wclose(vfile)
 		r = vfile
 		w, err = os.OpenFile(c.Args().Get(1), os.O_CREATE|os.O_WRONLY, 0655)
-		defer w.Close()
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
+		defer w.Close()
 	case parseError:
 		return cli.NewExitError(fmt.Sprintln("no artifact or sdimage provided"), 1)
 	case argerror:
@@ -128,9 +121,6 @@ func Install(c *cli.Context) (err error) {
 	var r io.ReadCloser
 	var w io.WriteCloser
 	wclose := func(w io.Closer) {
-		if w == nil {
-			return
-		}
 		cerr := w.Close()
 		if err == nil {
 			err = cerr
@@ -144,15 +134,15 @@ func Install(c *cli.Context) (err error) {
 		}
 		perm = os.FileMode(c.Int("mode"))
 		r, err = os.OpenFile(c.Args().First(), os.O_RDWR, perm)
+		if err != nil {
+			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
+		}
 		defer r.Close()
+		f, err := VirtualPartitionFile.Open(comp, c.Args().Get(1), c.String("key"))
 		if err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
 		}
-		f, err := virtualPartitionFile.Open(comp, c.Args().Get(1), c.String("key"))
 		defer wclose(f)
-		if err != nil {
-			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
-		}
 		w = f
 		if _, err = io.Copy(w, r); err != nil {
 			return cli.NewExitError(fmt.Sprintf("%v", err), 1)
@@ -184,11 +174,11 @@ func Remove(c *cli.Context) (err error) {
 	if !isimg.MatchString(c.Args().First()) {
 		return cli.NewExitError("The input image does not have a valid extension", 1)
 	}
-	f, err := virtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
-	defer wclose(f)
+	f, err := VirtualPartitionFile.Open(comp, c.Args().First(), c.String("key"))
 	if err != nil {
 		return cli.NewExitError(fmt.Sprintf("failed to open the partition reader: err: %v", err), 1)
 	}
+	defer wclose(f)
 	return f.Delete(c.Bool("recursive"))
 }
 

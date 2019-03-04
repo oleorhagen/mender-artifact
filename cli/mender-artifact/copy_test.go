@@ -239,7 +239,7 @@ func TestCopy(t *testing.T) {
 				// Cleanup the testkey
 				assert.Nil(t, os.Remove("testkey"))
 				// Check that the permission bits have been set correctly!
-				pf, err := virtualPartitionFile.Open(comp, imgpath+":/etc/mender/testkey.key", "")
+				pf, err := VirtualPartitionFile.Open(comp, imgpath+":/etc/mender/testkey.key", "")
 				defer pf.Close()
 				require.Nil(t, err)
 				// Type switch on the artifact, or sdimg underlying
@@ -400,9 +400,7 @@ func TestCopy(t *testing.T) {
 		{
 			name: "Error when deleting a non-empty directory from an image or Artifact",
 			argv: []string{"mender-artifact", "rm", ":/etc/mender/"},
-			err: `debugfsRemoveDir: debugfs: error running command: "rmdir /etc/mender", err: 
-rmdir: directory not empty
-`,
+			err:  "debugfsRemoveDir: debugfs: error running command: \"rmdir /etc/mender\", err: \nrmdir: directory not empty\n",
 		},
 		{
 			name: "Delete a directory from an image or Artifact recursively",
