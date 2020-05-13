@@ -18,18 +18,29 @@ package main
 // SubcommandHelpTemplate is the text template for the subcommand help topic.
 // cli.go uses text/template to render templates.
 // This template is used for sub-commands with one or more required flags present.
-const CustomSubcommandHelpTemplate = `NAME:
-   {{.HelpName}} - {{if .Description}}{{.Description}}{{else}}{{.Usage}}{{end}}
-
-USAGE:
-   {{if .UsageText}}{{.UsageText}}{{else}}{{.HelpName}} command{{if .VisibleFlags}} [command options]{{end}} {{if .ArgsUsage}}{{.ArgsUsage}}{{else}}[arguments...]{{end}}{{end}}
+// TODO - 80 is the hard-coded line-length. Make this configureable.
+const CustomSubcommandHelpTemplate = `.TH FORMATWITHGROFF
+.ll 80
+.SH NAME:
+{{.HelpName}} - {{if .Description}}{{.Description}}{{else}}{{.Usage}}{{end}}
+.SH USAGE:
+ {{if .UsageText}}
+{{.UsageText}}
+{{else}}
+{{.HelpName}} command{{if .VisibleFlags}} [command options]{{end}} {{if .ArgsUsage}}{{.ArgsUsage}}{{else}}[arguments...]{{end}}
+{{end}}
 {{if .VisibleFlags}}{{$reqs:=false}}{{range .VisibleFlags}}{{if .IsRequired}}{{$reqs = true}}{{end}}{{end}}
 {{- if $reqs}}
-REQUIRED ARGUMENTS:{{range .VisibleFlags}}{{if .IsRequired}}
-   {{.}}{{end}}{{end}}{{end}}
-
-OPTIONS:
-   {{range .VisibleFlags}}{{if not .IsRequired}}{{.}}
-   {{end}}{{end}}{{end}}
+.SH REQUIRED ARGUMENTS:
+{{range .VisibleFlags}}{{if .IsRequired}}
+.TP
+\fB{{.Name}}\fP
+{{.Usage}}{{end}}{{end}}{{end}}
+.SH OPTIONS:
+{{range .VisibleFlags}}{{if not .IsRequired}}
+.TP
+.sp -1
+\fB--{{.Name}}\FP
+{{.Usage}}{{end}}{{end}}{{end}}
 `
 
