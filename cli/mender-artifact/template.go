@@ -14,6 +14,11 @@
 
 package main
 
+var ttyWidth = 80
+
+func init() {
+	// Get the width of the terminal
+}
 
 // SubcommandHelpTemplate is the text template for the subcommand help topic.
 // cli.go uses text/template to render templates.
@@ -42,5 +47,7 @@ const CustomSubcommandHelpTemplate = `.TH FORMATWITHGROFF
 .sp -1
 \fB--{{.Name}}\FP
 {{.Usage}}{{end}}{{end}}{{end}}
+
+foobar
 `
 

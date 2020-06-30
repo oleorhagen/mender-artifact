@@ -70,6 +70,9 @@ func getCliContext() *cli.App {
 
 	app.EnableBashCompletion = true
 
+	app.CustomAppHelpTemplate = CustomSubcommandHelpTemplate
+
+
 	compressors := artifact.GetRegisteredCompressorIds()
 
 	compressionFlag := cli.StringFlag{
