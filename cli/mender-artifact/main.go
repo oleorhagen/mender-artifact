@@ -282,11 +282,11 @@ func getCliContext() *cli.App {
 	// Dynamic plugins
 	//
 
-	// generateCommand := cli.Command{
-	// 	Name:     "generate",
-	// 	Usage:    "Generates special Artifacts",
-	// 	Category: "Artifact Generation",
-	// }
+	generateCommand := cli.Command{
+		Name:     "generate",
+		Usage:    "Generates special Artifacts",
+		Category: "Artifact Generation",
+	}
 	// First check if there are any modules present in the ./plugins folder
 	if files, err := ioutil.ReadDir("/home/olepor/mendersoftware/mender-artifact/.plugins"); err == nil {
 		if len(files) > 0 {
@@ -315,11 +315,13 @@ func getCliContext() *cli.App {
 
 				subCmd.Flags = append(subCmd.Flags, tmpFlagHolder...)
 				writeModuleCommand.Subcommands = append(writeModuleCommand.Subcommands, subCmd)
+
+				generateCommand.Subcommands = append(writeModuleCommand.Subcommands, subCmd)
 			}
 		}
 
-		// generateCommand.Flags = append(generateCommand.Flags, writeModuleCommand.Flags...)
-		// generateCommand.CustomHelpTemplate = CustomSubcommandHelpTemplate
+		generateCommand.Flags = append(generateCommand.Flags, writeModuleCommand.Flags...)
+		generateCommand.CustomHelpTemplate = CustomSubcommandHelpTemplate
 	} else {
 		fmt.Fprintf(os.Stderr, "Got error: %v when reading .plugins dir", err)
 	}
@@ -545,9 +547,9 @@ func getCliContext() *cli.App {
 		remove,
 		dumpCommand,
 	}
-	// if len(generateCommand.Subcommands) > 0 {
-	// 	app.Commands = append(app.Commands, generateCommand)
-	// }
+	if len(generateCommand.Subcommands) > 0 {
+		app.Commands = append(app.Commands, generateCommand)
+	}
 	app.Flags = append([]cli.Flag{}, globalFlags...)
 
 	// Display all flags and commands alphabetically
