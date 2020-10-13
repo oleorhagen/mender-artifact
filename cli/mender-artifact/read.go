@@ -79,6 +79,12 @@ func readArtifact(c *cli.Context) error {
 	ar := areader.NewReader(f)
 	ar.ScriptsReadCallback = readScripts
 	ar.VerifySignatureCallback = ver
+	go func() {
+		fmt.Println("Reading Artifact...")
+		for {
+			fmt.Printf("Reading: %s...\n", <-ar.Stage)
+		}
+	}()
 	err = ar.ReadArtifact()
 	if err != nil {
 		if errors.Cause(err) == artifact.ErrCompatibleDevices {

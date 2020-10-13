@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/mendersoftware/mender-artifact/artifact"
+	"github.com/mendersoftware/mender-artifact/artifact/stage"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/mendersoftware/mender-artifact/utils"
 	"github.com/pkg/errors"
@@ -55,6 +56,7 @@ type Reader struct {
 	updateStorers   map[int]handlers.UpdateStorer
 	manifest        *artifact.ChecksumStore
 	menderTarReader *tar.Reader
+	Stage chan string
 }
 
 func NewReader(r io.Reader) *Reader {
@@ -63,6 +65,7 @@ func NewReader(r io.Reader) *Reader {
 		handlers:      make(map[string]handlers.Installer, 1),
 		installers:    make(map[int]handlers.Installer, 1),
 		updateStorers: make(map[int]handlers.UpdateStorer),
+		Stage: make(chan string, 10),
 	}
 }
 
@@ -391,7 +394,8 @@ func (ar *Reader) handleHeaderReads(headerName string, version []byte) error {
 		if err = verifyVersion(version, ar.manifest); err != nil {
 			return err
 		}
-		return err
+		ar.Stage <- stage.Manifest
+		return nil
 	case "manifest.sig":
 		ar.IsSigned = true
 		// First read and verify signature
@@ -399,9 +403,11 @@ func (ar *Reader) handleHeaderReads(headerName string, version []byte) error {
 			ar.VerifySignatureCallback, ar.shouldBeSigned); err != nil {
 			return err
 		}
+		ar.Stage <- stage.ManifestSignature
 	case "manifest-augment":
 		// Get the data from the augmented manifest.
 		ar.augmentFiles, err = readManifestHeader(ar, ar.menderTarReader)
+		ar.Stage <- stage.ManifestAugment
 		return err
 	case "header.tar", "header.tar.gz", "header.tar.xz":
 		// Get and verify checksums of header.
@@ -418,6 +424,7 @@ func (ar *Reader) handleHeaderReads(headerName string, version []byte) error {
 		if err := ar.readHeader(hc, comp); err != nil {
 			return errors.Wrap(err, "handleHeaderReads")
 		}
+		ar.Stage <- stage.Header
 	case "header-augment.tar", "header-augment.tar.gz", "header-augment.tar.xz":
 		// Get and verify checksums of the augmented header.
 		hc, err := ar.manifest.GetAndMark(headerName)
@@ -433,6 +440,7 @@ func (ar *Reader) handleHeaderReads(headerName string, version []byte) error {
 		if err := ar.readAugmentedHeader(hc, comp); err != nil {
 			return errors.Wrap(err, "handleHeaderReads: Failed to read the augmented header")
 		}
+		ar.Stage <- stage.HeaderAugment
 	default:
 		return errors.Errorf("reader: found unexpected file in artifact: %v",
 			headerName)
@@ -560,6 +568,7 @@ func (ar *Reader) ReadArtifactHeaders() error {
 	if err != nil {
 		return errors.Wrapf(err, "reader: can not read version file")
 	}
+	ar.Stage <- stage.Version
 	ar.info = ver
 
 	switch ver.Version {
@@ -584,6 +593,7 @@ func (ar *Reader) ReadArtifactData() error {
 	if err != nil {
 		return err
 	}
+	ar.Stage <- stage.Data
 
 	err = ar.readData(ar.menderTarReader)
 	if err != nil {
@@ -844,6 +854,7 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
 	if err != nil {
 		return errors.New("reader: can't get compressor")
 	}
+
 	updNo, err := getUpdateNoFromDataPath(comp, hdr.Name)
 	if err != nil {
 		return errors.Wrapf(err, "reader: error getting data Payload number")
@@ -853,7 +864,12 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
 		return errors.Wrapf(err,
 			"reader: can not find parser for parsing data file [%v]", hdr.Name)
 	}
-	return ar.readAndInstall(tr, inst, updNo, comp)
+	fmt.Printf("Reading and installing...\n")
+	pw := &utils.ProgressReader{
+		Reader: tr,
+		TotalSize: hdr.Size,
+	}
+	return ar.readAndInstall(pw, inst, updNo, comp)
 }
 
 func (ar *Reader) readData(tr *tar.Reader) error {

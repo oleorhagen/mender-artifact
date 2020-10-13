@@ -175,6 +175,12 @@ func writeRootfs(c *cli.Context) error {
 		}
 	}
 
+	go func() {
+		for {
+			fmt.Printf("Progress state: %s\n", <-aw.State)
+		}
+	}()
+
 	err = aw.WriteArtifact(
 		&awriter.WriteArtifactArgs{
 			Format:     "mender",

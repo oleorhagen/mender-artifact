@@ -23,9 +23,11 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/mendersoftware/mender-artifact/artifact/stage"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
+	"github.com/mendersoftware/mender-artifact/utils"
 )
 
 // Writer provides on the fly writing of artifacts metadata file used by
@@ -34,21 +36,21 @@ type Writer struct {
 	w      io.Writer // underlying writer
 	signer artifact.Signer
 	c      artifact.Compressor
+	State chan string // Report progress
 }
 
 func NewWriter(w io.Writer, c artifact.Compressor) *Writer {
 	return &Writer{
 		w: w,
 		c: c,
+		State: make(chan string, 10),
 	}
 }
 
 func NewWriterSigned(w io.Writer, c artifact.Compressor, manifestChecksumStore artifact.Signer) *Writer {
-	return &Writer{
-		w:      w,
-		c:      c,
-		signer: manifestChecksumStore,
-	}
+	nw := NewWriter(w, c)
+	nw.signer = manifestChecksumStore
+	return nw
 }
 
 type Updates struct {
@@ -213,7 +215,7 @@ func (aw *Writer) writeArtifactV2(args *WriteArtifactArgs) error {
 		return errors.Wrapf(err, "writer: can not write version tar header")
 	}
 
-	if err = writeManifestVersion(args.Version, aw.signer, tw, manifestChecksumStore, nil, inf); err != nil {
+	if err = writeManifestVersion(args.Version, aw.signer, tw, manifestChecksumStore, nil, inf, aw.State); err != nil {
 		return errors.Wrap(err, "WriteArtifact")
 	}
 
@@ -282,7 +284,7 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	// Write manifest.sig     //
 	// Write manifest-augment //
 	////////////////////////////
-	if err = writeManifestVersion(args.Version, aw.signer, tw, manifestChecksumStore, augManifestChecksumStore, inf); err != nil {
+	if err = writeManifestVersion(args.Version, aw.signer, tw, manifestChecksumStore, augManifestChecksumStore, inf, aw.State); err != nil {
 		return errors.Wrap(err, "WriteArtifact")
 	}
 
@@ -296,6 +298,7 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	if err := fw.Write(tmpHdr, "header.tar"+aw.c.GetFileExtension()); err != nil {
 		return errors.Wrapf(err, "writer: can not tar header")
 	}
+	aw.State <- stage.Header
 
 	/////////////////////////////
 	// Write augmented-header  //
@@ -308,18 +311,21 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 		if err := fw.Write(tmpAugHdr, "header-augment.tar"+aw.c.GetFileExtension()); err != nil {
 			return errors.Wrapf(err, "writer: can not tar augmented-header")
 		}
+		aw.State <- stage.HeaderAugment
 	}
 
 	//////////////////////////
 	// Write the datafiles  //
 	//////////////////////////
+	aw.State <- stage.Data
 	return writeData(tw, aw.c, args.Updates)
 }
 
 // writeArtifactVersion writes version specific artifact records.
-func writeManifestVersion(version int, signer artifact.Signer, tw *tar.Writer, manifestChecksumStore, augmanChecksumStore *artifact.ChecksumStore, artifactInfoStream []byte) error {
+func writeManifestVersion(version int, signer artifact.Signer, tw *tar.Writer, manifestChecksumStore, augmanChecksumStore *artifact.ChecksumStore, artifactInfoStream []byte, state chan string) error {
 	switch version {
 	case 2:
+		state <- stage.Manifest
 		// add checksum of `version`
 		ch := artifact.NewWriterChecksum(ioutil.Discard)
 		ch.Write(artifactInfoStream)
@@ -329,11 +335,13 @@ func writeManifestVersion(version int, signer artifact.Signer, tw *tar.Writer, m
 		if err := sw.Write(manifestChecksumStore.GetRaw(), "manifest"); err != nil {
 			return errors.Wrapf(err, "writer: can not write manifest stream")
 		}
+		state <- stage.ManifestSignature
 		// write signature
 		if err := WriteSignature(tw, manifestChecksumStore.GetRaw(), signer); err != nil {
 			return err
 		}
 	case 3:
+		state <- stage.Manifest
 		// Add checksum of `version`.
 		ch := artifact.NewWriterChecksum(ioutil.Discard)
 		ch.Write(artifactInfoStream)
@@ -343,12 +351,14 @@ func writeManifestVersion(version int, signer artifact.Signer, tw *tar.Writer, m
 		if err := sw.Write(manifestChecksumStore.GetRaw(), "manifest"); err != nil {
 			return errors.Wrapf(err, "writer: can not write manifest stream")
 		}
+		state <- stage.ManifestSignature
 		// Write signature.
 		if err := WriteSignature(tw, manifestChecksumStore.GetRaw(), signer); err != nil {
 			return err
 		}
 		// Write the augmented manifest, if any.
 		if len(augmanChecksumStore.GetRaw()) > 0 {
+			state <- stage.ManifestAugment
 			sw = artifact.NewTarWriterStream(tw)
 			if err := sw.Write(augmanChecksumStore.GetRaw(), "manifest-augment"); err != nil {
 				return errors.Wrapf(err, "writer: can not write manifest stream")
@@ -475,10 +485,18 @@ func writeOneDataTar(tw *tar.Writer, comp artifact.Compressor, no int,
 		}
 		defer gz.Close()
 
-		tarw := tar.NewWriter(gz)
+		pw := &utils.ProgressWriter{
+			Writer: gz,
+		}
+		tarw := tar.NewWriter(pw)
 		defer tarw.Close()
 
 		for _, file := range baseUpdate.GetUpdateFiles() {
+			fi, err := os.Stat(file.Name)
+			if err != nil {
+				return err
+			}
+			pw.TotalSize = fi.Size()
 			err = writeOneDataFile(tarw, file)
 			if err != nil {
 				return err
@@ -530,6 +548,7 @@ func writeOneDataFile(tarw *tar.Writer, file *handlers.DataFile) error {
 		return errors.Wrapf(err, "Payload: can not open data file: %s", file.Name)
 	}
 	fw := artifact.NewTarWriterFile(tarw)
+
 	if err := fw.Write(df, filepath.Base(file.Name)); err != nil {
 		df.Close()
 		return errors.Wrapf(err,
