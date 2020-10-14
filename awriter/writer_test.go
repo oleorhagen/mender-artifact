@@ -701,7 +701,7 @@ func TestWriteManifestVersion(t *testing.T) {
 
 	for desc, test := range testcases {
 		t.Run(desc, func(t *testing.T) {
-			err := writeManifestVersion(test.version, test.signer, test.tw, test.mchk, test.augmchk, test.aistream)
+			err := writeManifestVersion(test.version, test.signer, test.tw, test.mchk, test.augmchk, test.aistream, nil)
 			if test.err != "" {
 				assert.Contains(t, err.Error(), test.err)
 			}
@@ -785,12 +785,12 @@ func TestRootfsCompose(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = writeData(tw, comp, &Updates{[]handlers.Composer{r}, nil})
+	err = writeData(tw, comp, &Updates{[]handlers.Composer{r}, nil}, nil)
 	require.NoError(t, err)
 
 	// error compose data with missing data file
 	r = handlers.NewRootfsV2("non-existing")
-	err = writeData(tw, comp, &Updates{[]handlers.Composer{r}, nil})
+	err = writeData(tw, comp, &Updates{[]handlers.Composer{r}, nil}, nil)
 	require.Error(t, err)
 	require.Contains(t, errors.Cause(err).Error(),
 		"no such file or directory")

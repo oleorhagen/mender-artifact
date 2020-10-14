@@ -27,8 +27,13 @@ import (
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
-	"github.com/mendersoftware/mender-artifact/utils"
 )
+
+type ProgressWriter interface {
+	Wrap(io.WriteCloser) io.Writer
+	Reset(size int64, filename string, payloadNr int)
+	io.Writer
+}
 
 // Writer provides on the fly writing of artifacts metadata file used by
 // the Mender client and the server.
@@ -37,6 +42,7 @@ type Writer struct {
 	signer artifact.Signer
 	c      artifact.Compressor
 	State chan string // Report progress
+	ProgressWriter ProgressWriter // Report progress whilst writing
 }
 
 func NewWriter(w io.Writer, c artifact.Compressor) *Writer {
@@ -229,7 +235,7 @@ func (aw *Writer) writeArtifactV2(args *WriteArtifactArgs) error {
 	}
 
 	// write data files
-	return writeData(tw, aw.c, args.Updates)
+	return writeData(tw, aw.c, args.Updates, aw.ProgressWriter)
 }
 
 func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
@@ -318,7 +324,7 @@ func (aw *Writer) writeArtifactV3(args *WriteArtifactArgs) (err error) {
 	// Write the datafiles  //
 	//////////////////////////
 	aw.State <- stage.Data
-	return writeData(tw, aw.c, args.Updates)
+	return writeData(tw, aw.c, args.Updates, aw.ProgressWriter)
 }
 
 // writeArtifactVersion writes version specific artifact records.
@@ -456,13 +462,13 @@ func writeHeader(tarWriter *tar.Writer, args *WriteArtifactArgs, augmented bool)
 	return nil
 }
 
-func writeData(tw *tar.Writer, comp artifact.Compressor, updates *Updates) error {
+func writeData(tw *tar.Writer, comp artifact.Compressor, updates *Updates, pw ProgressWriter) error {
 	for i, upd := range updates.Updates {
 		var augment handlers.Composer = nil
 		if i < len(updates.Augments) {
 			augment = updates.Augments[i]
 		}
-		if err := writeOneDataTar(tw, comp, i, upd, augment); err != nil {
+		if err := writeOneDataTar(tw, comp, i, upd, augment, pw); err != nil {
 			return errors.Wrapf(err, "writer: error writing data files")
 		}
 	}
@@ -470,7 +476,7 @@ func writeData(tw *tar.Writer, comp artifact.Compressor, updates *Updates) error
 }
 
 func writeOneDataTar(tw *tar.Writer, comp artifact.Compressor, no int,
-	baseUpdate, augmentUpdate handlers.Composer) error {
+	baseUpdate, augmentUpdate handlers.Composer, pw ProgressWriter) error {
 
 	f, ferr := ioutil.TempFile("", "data")
 	if ferr != nil {
@@ -485,18 +491,23 @@ func writeOneDataTar(tw *tar.Writer, comp artifact.Compressor, no int,
 		}
 		defer gz.Close()
 
-		pw := &utils.ProgressWriter{
-			Writer: gz,
+		var w io.Writer
+		if pw != nil {
+			w = pw.Wrap(gz)
+		} else {
+			w = gz
 		}
-		tarw := tar.NewWriter(pw)
+		tarw := tar.NewWriter(w)
 		defer tarw.Close()
 
-		for _, file := range baseUpdate.GetUpdateFiles() {
+		for i, file := range baseUpdate.GetUpdateFiles() {
 			fi, err := os.Stat(file.Name)
 			if err != nil {
 				return err
 			}
-			pw.TotalSize = fi.Size()
+			if pw != nil {
+				pw.Reset(fi.Size(), file.Name, i)
+			}
 			err = writeOneDataFile(tarw, file)
 			if err != nil {
 				return err

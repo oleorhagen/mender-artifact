@@ -29,6 +29,7 @@ import (
 	"github.com/mendersoftware/mender-artifact/handlers"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
+	"github.com/mendersoftware/mender-artifact/utils"
 )
 
 func readArtifact(c *cli.Context) error {
@@ -77,6 +78,7 @@ func readArtifact(c *cli.Context) error {
 	}
 
 	ar := areader.NewReader(f)
+	ar.ProgressReader = &utils.ProgressReader{}
 	ar.ScriptsReadCallback = readScripts
 	ar.VerifySignatureCallback = ver
 	go func() {

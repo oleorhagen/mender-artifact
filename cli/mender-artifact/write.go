@@ -33,6 +33,7 @@ import (
 	"github.com/urfave/cli"
 	"io"
 	"io/ioutil"
+	"github.com/mendersoftware/mender-artifact/utils"
 )
 
 func writeRootfsImageChecksum(rootfsFilename string,
@@ -181,6 +182,7 @@ func writeRootfs(c *cli.Context) error {
 		}
 	}()
 
+	aw.ProgressWriter = &utils.ProgressWriter{}
 	err = aw.WriteArtifact(
 		&awriter.WriteArtifactArgs{
 			Format:     "mender",

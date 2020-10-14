@@ -37,6 +37,10 @@ type SignatureVerifyFn func(message, sig []byte) error
 type DevicesCompatibleFn func([]string) error
 type ScriptsReadFn func(io.Reader, os.FileInfo) error
 
+type ProgressReader interface {
+	Wrap(io.Reader, int64) io.Reader
+}
+
 type Reader struct {
 	CompatibleDevicesCallback DevicesCompatibleFn
 	ScriptsReadCallback       ScriptsReadFn
@@ -57,6 +61,7 @@ type Reader struct {
 	manifest        *artifact.ChecksumStore
 	menderTarReader *tar.Reader
 	Stage chan string
+	ProgressReader ProgressReader
 }
 
 func NewReader(r io.Reader) *Reader {
@@ -865,11 +870,16 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
 			"reader: can not find parser for parsing data file [%v]", hdr.Name)
 	}
 	fmt.Printf("Reading and installing...\n")
-	pw := &utils.ProgressReader{
-		Reader: tr,
-		TotalSize: hdr.Size,
+
+	var r io.Reader
+	if ar.ProgressReader != nil {
+		// tr = utils.NewProgressReader(tr, hdr.Size)
+		r = ar.ProgressReader.Wrap(tr, hdr.Size)
+	} else {
+		r = tr
 	}
-	return ar.readAndInstall(pw, inst, updNo, comp)
+
+	return ar.readAndInstall(r, inst, updNo, comp)
 }
 
 func (ar *Reader) readData(tr *tar.Reader) error {
