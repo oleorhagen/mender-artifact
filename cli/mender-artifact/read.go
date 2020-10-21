@@ -27,9 +27,9 @@ import (
 	"github.com/mendersoftware/mender-artifact/areader"
 	"github.com/mendersoftware/mender-artifact/artifact"
 	"github.com/mendersoftware/mender-artifact/handlers"
+	"github.com/mendersoftware/mender-artifact/utils"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
-	"github.com/mendersoftware/mender-artifact/utils"
 )
 
 func readArtifact(c *cli.Context) error {
@@ -81,12 +81,7 @@ func readArtifact(c *cli.Context) error {
 	ar.ProgressReader = &utils.ProgressReader{}
 	ar.ScriptsReadCallback = readScripts
 	ar.VerifySignatureCallback = ver
-	go func() {
-		fmt.Println("Reading Artifact...")
-		for {
-			fmt.Printf("Reading: %s...\n", <-ar.Stage)
-		}
-	}()
+	fmt.Fprintln(os.Stderr, "Reading Artifact...")
 	err = ar.ReadArtifact()
 	if err != nil {
 		if errors.Cause(err) == artifact.ErrCompatibleDevices {

@@ -869,11 +869,9 @@ func (ar *Reader) readNextDataFile(tr *tar.Reader) error {
 		return errors.Wrapf(err,
 			"reader: can not find parser for parsing data file [%v]", hdr.Name)
 	}
-	fmt.Printf("Reading and installing...\n")
 
 	var r io.Reader
 	if ar.ProgressReader != nil {
-		// tr = utils.NewProgressReader(tr, hdr.Size)
 		r = ar.ProgressReader.Wrap(tr, hdr.Size)
 	} else {
 		r = tr

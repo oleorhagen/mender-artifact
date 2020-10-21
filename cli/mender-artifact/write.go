@@ -177,8 +177,11 @@ func writeRootfs(c *cli.Context) error {
 	}
 
 	go func() {
+		str := fmt.Sprintf("Writing: %s", <-aw.State)
 		for {
-			fmt.Printf("Progress state: %s\n", <-aw.State)
+			fmt.Printf(str)
+			str = fmt.Sprintf("Writing: %s", <-aw.State)
+			fmt.Printf(" \u2713\n")
 		}
 	}()
 

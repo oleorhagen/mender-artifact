@@ -37,6 +37,7 @@ type ProgressWriter struct {
 }
 
 func (p *ProgressWriter) Wrap(w io.WriteCloser) io.Writer {
+	fmt.Fprintln(os.Stderr)
 	p.Writer = w
 	return p
 }
@@ -47,6 +48,12 @@ func (p *ProgressWriter) Reset(size int64, filename string, payloadNumber int) {
 	}
 	filename = fmt.Sprintf("%d: %s", payloadNumber, filename)
 	p.bar = progressbar.DefaultBytes(size, filename)
+}
+
+func (p *ProgressWriter) Finish() {
+	if p.bar != nil {
+		p.bar.Finish()
+	}
 }
 
 func (p *ProgressWriter) Write(b []byte) (int, error) {
