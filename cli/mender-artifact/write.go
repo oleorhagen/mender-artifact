@@ -33,6 +33,7 @@ import (
 	"github.com/urfave/cli"
 	"io"
 	"io/ioutil"
+	"github.com/mendersoftware/mender-artifact/utils"
 )
 
 func writeRootfsImageChecksum(rootfsFilename string,
@@ -175,6 +176,16 @@ func writeRootfs(c *cli.Context) error {
 		}
 	}
 
+	go func() {
+		str := fmt.Sprintf("Writing: %s", <-aw.State)
+		for {
+			fmt.Printf(str)
+			str = fmt.Sprintf("Writing: %s", <-aw.State)
+			fmt.Printf(" \u2713\n")
+		}
+	}()
+
+	aw.ProgressWriter = &utils.ProgressWriter{}
 	err = aw.WriteArtifact(
 		&awriter.WriteArtifactArgs{
 			Format:     "mender",
@@ -520,9 +531,8 @@ func getDeviceSnapshot(c *cli.Context) (string, error) {
 	// First echo to stdout such that we know when ssh connection is
 	// established (password prompt is written to /dev/tty directly,
 	// and hence impossible to detect).
-	// When user id is 0 do not bother with sudo.
-	args = append(args, "/bin/sh", "-c",
-		`'[ $(id -u) -eq 0 ] || sudo_cmd="sudo -S"; $sudo_cmd /bin/sh -c "echo `+sshInitMagic+`; mender snapshot dump" | cat'`)
+	args = append(args, "sudo", "-S", "/bin/sh", "-c",
+		`'echo "`+sshInitMagic+`" && mender snapshot dump | cat'`)
 
 	cmd := exec.Command("ssh", args...)
 
